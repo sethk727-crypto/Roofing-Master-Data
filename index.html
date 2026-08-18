@@ -67,6 +67,7 @@ a{color:var(--hot)}
       <option value="30">Last 30 days</option>
     </select>
     <button class="primary" id="refresh">↻ Refresh</button>
+    <button id="export" title="Download the current data as the STORM-STRIKE ANALYST input JSON (see PROMPT.md)">⇩ Analyst JSON</button>
   </div>
 </header>
 
@@ -296,24 +297,54 @@ function drawSPC(gj){
   }
 }
 
+// ======================= ANALYST EXPORT (input contract for PROMPT.md) =======================
+const DATA = { reports:null, alerts:null, spc:null };
+function buildAnalystInput(){
+  const d = DATA.reports || {hail:[],wind:[],gust:[]};
+  const dstr = v => (v||'').toString().slice(0,10);
+  const out = {
+    as_of: new Date().toISOString(),
+    hail_reports: d.hail.map(h=>({date:dstr(h.valid), size_in:h.mag, city:h.city, county:h.county, state:h.st, lat:h.lat, lon:h.lon})),
+    wind_reports: d.wind.map(w=>({date:dstr(w.valid), city:w.city, county:w.county, state:w.st, lat:w.lat, lon:w.lon})),
+    gust_reports: d.gust.map(g=>({date:dstr(g.valid), mph:g.mag, city:g.city, state:g.st, lat:g.lat, lon:g.lon}))
+  };
+  if(DATA.alerts) out.active_alerts = DATA.alerts.map(f=>{const p=f.properties||{};
+    return {event:p.event||'', severity:p.severity||'', area_description:(p.areaDesc||'').slice(0,200), expires:p.expires||''};});
+  if(DATA.spc){ const day = (DATA.spc.url.match(/day(\d)/)||[])[1]||'1';
+    out.spc_outlook = (DATA.spc.gj.features||[])
+      .map(f=>((f.properties||{}).LABEL||'').toUpperCase()).filter(l=>l&&l!=='TSTM')
+      .map(l=>({day:+day, risk_level:l, area_description:'SPC categorical polygon — see map overlay'})); }
+  return out;
+}
+function exportAnalystInput(){
+  if(!DATA.reports){ alert('Storm reports have not loaded yet — hit Refresh first.'); return; }
+  const json = JSON.stringify(buildAnalystInput(), null, 1);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json],{type:'application/json'}));
+  a.download = 'stormstrike-input.json';
+  a.click(); URL.revokeObjectURL(a.href);
+  if(navigator.clipboard) navigator.clipboard.writeText(json).catch(()=>{});
+}
+
 // ======================= ORCHESTRATION =======================
 async function refreshAll(){
   const days=parseInt(document.getElementById('range').value,10);
   document.getElementById('updated').textContent='updating…';
   // storm reports + impact scoring
-  try{ const d=await loadLSR(days); drawReports(d); drawZones(scoreImpactPoints(d));
+  try{ const d=await loadLSR(days); DATA.reports=d; drawReports(d); drawZones(scoreImpactPoints(d));
        setPill('p-lsr','ok',`${d.hail.length} hail · ${d.wind.length} wind`); }
   catch(e){ setPill('p-lsr','err','Storm reports blocked'); document.getElementById('zones').innerHTML='<div class="empty">Could not load storm reports (network/CORS). Try Refresh.</div>'; }
   // alerts
-  try{ const a=await loadAlerts(); drawAlerts(a); setPill('p-alert','ok',`${a.length} active`); }
+  try{ const a=await loadAlerts(); DATA.alerts=a; drawAlerts(a); setPill('p-alert','ok',`${a.length} active`); }
   catch(e){ setPill('p-alert','err','Alerts blocked'); document.getElementById('alerts').innerHTML='<div class="empty">Could not load NWS alerts.</div>'; }
   // SPC outlook
-  try{ const s=await loadSPC(); drawSPC(s.gj); setPill('p-spc','ok','Outlook live'); }
+  try{ const s=await loadSPC(); DATA.spc=s; drawSPC(s.gj); setPill('p-spc','ok','Outlook live'); }
   catch(e){ setPill('p-spc','err','Outlook unavailable'); document.getElementById('spc').innerHTML='<div class="empty">SPC outlook not reachable from this browser (some networks block spc.noaa.gov). Alerts above still cover imminent storms.</div>'; }
   document.getElementById('updated').textContent='Updated '+new Date().toLocaleTimeString();
 }
 
 document.getElementById('refresh').onclick=refreshAll;
+document.getElementById('export').onclick=exportAnalystInput;
 document.getElementById('range').onchange=refreshAll;
 refreshAll();
 setInterval(refreshAll, REFRESH_MS);
