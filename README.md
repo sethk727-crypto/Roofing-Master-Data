@@ -15,15 +15,20 @@ it loads and auto-refreshes every 15 minutes.
 ## Run it right now (no setup)
 Double-click `index.html`. It opens in your browser and starts pulling live data.
 
-## Put it online so it "updates live" for you (free, ~3 minutes)
-GitHub Pages hosts it for free and the page pulls fresh data on every visit.
+## It's already online
+This repo auto-deploys to GitHub Pages on every push to `main` (see
+`.github/workflows/deploy-pages.yml`). The live app:
 
-1. Create a free account at github.com if you don't have one.
-2. Click **New repository** → name it `stormstrike` → **Public** → **Create**.
-3. Click **uploading an existing file** → drag in `index.html` (and the other two files) → **Commit**.
-4. Go to the repo's **Settings → Pages** → under "Branch" pick **main** / **/(root)** → **Save**.
-5. Wait ~1 minute. Your live app is at:  `https://<your-username>.github.io/stormstrike/`
-   Bookmark it on your phone — it's your storm radar in your pocket.
+**https://sethk727-crypto.github.io/Roofing-Master-Data/**
+
+Bookmark it on your phone — it's your storm radar in your pocket. The page pulls fresh data on
+every visit, so you never re-upload anything.
+
+## Get the AI weekly plan
+Open the live app, pick your date range, and click **⇩ Analyst JSON** in the header. It
+downloads (and copies to your clipboard) `stormstrike-input.json` — the exact input the
+`PROMPT.md` analyst expects. Paste it into a Claude session along with `PROMPT.md` and you get
+back the ranked, routed Mon-Fri canvassing plan.
 
 Because all the data is fetched live in the browser, the GitHub page is always current — you
 never have to re-upload anything. To change the home base or radius, edit the `CONFIG` block at
