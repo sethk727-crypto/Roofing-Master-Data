@@ -62,18 +62,42 @@ your lists live). Columns it understands: `name`, `address`, `city`, `state`, `z
 or `lat`/`lon` if you already have coordinates. Rows without coordinates are located
 automatically (OpenStreetMap, ~1/sec). A starter file is in the repo: **`leads-template.csv`**.
 
+Or skip the file entirely: tap **⚡ Airtable** and paste a personal access token
+(airtable.com/create/tokens, `data.records:read` scope), your base ID, and a table name — the
+browser pulls the records straight from your base (token is saved only on your device, sent
+only to api.airtable.com). It understands the Roofing Lead Engine columns (Property Address,
+Town, ZIP, County/State, Owner Name, Campaign, Status, Year Built) and re-syncing never
+overwrites statuses you've set. Tap ⚡ again anytime to pull new records.
+
 Each lead becomes a colored pin + card. Tap the status chip (or the pin's popup) to cycle
 **New → Visited → Follow-up → Signed → Dead** — colors update on the map and everything is
 saved on your device. Every lead and every target zone has a **🧭 Navigate** button that opens
 turn-by-turn directions. Top target zones also show a street-level **"Start near"** address —
 a concrete corner to park the truck and start knocking.
 
-## Get the AI weekly plan
-Open the live app, pick your date range, and tap **⇪** in the header. On iPhone/Android it
-opens the share sheet with `stormstrike-input.json` (share it straight into the Claude app);
-on desktop it downloads the file and copies it to your clipboard. That file is the exact input
-the `PROMPT.md` analyst expects — paste it into a Claude session along with `PROMPT.md` and you
-get back the ranked, routed Mon-Fri canvassing plan.
+## Live location in the field
+Tap the **🎯** button on the map to turn on your live GPS position — a blue dot with an
+accuracy ring that follows you as you walk a neighborhood, so you can see exactly which storm
+pins and lead pins are around you. Tap again to turn it off. (Your location never leaves the
+phone; the browser will ask permission the first time.)
+
+## Command-center look
+The app defaults to a dark, high-contrast command-center theme (dark map tiles included).
+The **☀/🌙** button in the header flips light/dark; your choice is remembered on the device.
+
+## Exports — the ⇪ button
+The **⇪** button opens a small export menu with three one-tap actions:
+
+1. **🤖 Analyst JSON** — the exact input `PROMPT.md` expects. On iPhone/Android it opens the
+   share sheet (send it straight into the Claude app); on desktop it downloads + copies to
+   clipboard. Paste it into a Claude session with `PROMPT.md` to get the ranked, routed
+   Mon-Fri canvassing plan.
+2. **📊 Zones CSV** — the ranked target zones (rank, name, lat/lon, start address, score, hail,
+   recency, drive miles, wind counts) formatted for territory apps like Spotio: import it as a
+   pin list.
+3. **🔗 Send to n8n** — POSTs the ranked zones as JSON to an n8n webhook URL you enter once
+   (saved on the device) for automated CRM ingestion. In your n8n Webhook node, allow this
+   site's origin under CORS "Allowed Origins" (or `*`).
 
 Because all the data is fetched live in the browser, the GitHub page is always current — you
 never have to re-upload anything. To change the home base or radius, edit the `CONFIG` block at

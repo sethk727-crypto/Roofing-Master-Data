@@ -16,10 +16,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
-  --ink:#161a20; --muted:#61697a; --panel:#ffffff; --line:#e4e7ec; --bg:#f3f5f8;
-  --hot:#c2410c; --fresh:#1a7f37; --wind:#3b5bdb; --gust:#7c2d92;
+  /* command-center dark (default) */
+  --ink:#e8ecf4; --muted:#98a2b6; --panel:#141a24; --line:#252d3b; --bg:#0d1117;
+  --hot:#f97316; --fresh:#22a04c; --wind:#5b7bf0; --gust:#a05ac0;
+  --chipbg:#1b2230; --hoverbg:#1a2333; --alertbg:#2a1917; --daybg:#271b10; --btn:#2a3550;
+  --grab:#3a445a; --legendbg:rgba(20,26,36,.94); --zlabel:#ffb38a; --zshadow:#000; --mapbg:#0b0e13;
   --slgt:#f6e58d; --enh:#e59866; --mdt:#e74c3c; --high:#c0392b; --mrgl:#a9dfbf; --tstm:#cfe8cf;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"]{
+  --ink:#161a20; --muted:#61697a; --panel:#ffffff; --line:#e4e7ec; --bg:#f3f5f8;
+  --hot:#c2410c; --fresh:#1a7f37; --wind:#3b5bdb; --gust:#7c2d92;
+  --chipbg:#f0f2f6; --hoverbg:#f5f8ff; --alertbg:#fff5f4; --daybg:#fff7f3; --btn:#161a20;
+  --grab:#cdd3dd; --legendbg:rgba(255,255,255,.95); --zlabel:#7a1f00; --zshadow:#fff; --mapbg:#dfe4ea;
 }
 *{box-sizing:border-box;margin:0}
 html,body{height:100%}
@@ -47,7 +56,7 @@ button:active{filter:brightness(1.25)}
 
 /* ---------- layout ---------- */
 #wrap{flex:1;display:flex;min-height:0;position:relative}
-#map{flex:1;background:#dfe4ea}
+#map{flex:1;background:var(--mapbg)}
 #nomap{display:flex;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;
   color:var(--muted);font-size:13px;line-height:1.6}
 #side{width:380px;max-width:44vw;background:var(--panel);border-left:1px solid var(--line);
@@ -55,9 +64,9 @@ button:active{filter:brightness(1.25)}
 
 /* ---------- panel internals ---------- */
 #grab{display:none;justify-content:center;padding:10px 0 2px;cursor:grab;touch-action:none;flex-shrink:0}
-#grab span{width:44px;height:5px;border-radius:3px;background:#cdd3dd}
+#grab span{width:44px;height:5px;border-radius:3px;background:var(--grab)}
 .statusline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px 6px;flex-shrink:0}
-.pill{display:inline-flex;align-items:center;gap:5px;background:#f0f2f6;border:1px solid var(--line);
+.pill{display:inline-flex;align-items:center;gap:5px;background:var(--chipbg);border:1px solid var(--line);
   border-radius:20px;padding:3px 9px;font-size:10.5px;color:var(--muted)}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:#8a94a8;flex-shrink:0}
 .pill.ok .dot{background:#31c66d} .pill.warn .dot{background:#e0a800} .pill.err .dot{background:#e05a4d}
@@ -78,19 +87,19 @@ button:active{filter:brightness(1.25)}
 
 /* ---------- cards ---------- */
 .card{border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px;cursor:pointer;transition:background .15s}
-.card:active{background:#eef3ff}
-@media(hover:hover){.card:hover{background:#f5f8ff}}
+.card:active{background:var(--hoverbg)}
+@media(hover:hover){.card:hover{background:var(--hoverbg)}}
 .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .card .name{font-size:14px;font-weight:700}
 .card .score{font-size:16px;font-weight:800;color:var(--hot)}
 .card .meta{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.55}
 .badge{display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px;color:#fff;vertical-align:middle}
 .badge.fresh{background:var(--fresh)} .badge.hail{background:var(--hot)} .badge.alert{background:#b3261e}
-.alertcard{border-left:4px solid #b3261e;background:#fff5f4;cursor:default}
-.card.dayon{border-color:var(--hot);background:#fff7f3;box-shadow:inset 3px 0 0 var(--hot)}
+.alertcard{border-left:4px solid #b3261e;background:var(--alertbg);cursor:default}
+.card.dayon{border-color:var(--hot);background:var(--daybg);box-shadow:inset 3px 0 0 var(--hot)}
 .leadbar{display:flex;gap:8px;margin-bottom:10px}
-.leadbar button{background:var(--ink);color:#fff;border:none;border-radius:9px;min-height:40px;padding:0 14px;font-weight:700}
-.leadbar button.ghost{background:#e9ecf1;color:var(--ink)}
+.leadbar button{background:var(--btn);color:#fff;border:none;border-radius:9px;min-height:40px;padding:0 14px;font-weight:700}
+.leadbar button.ghost{background:var(--chipbg);color:var(--ink)}
 .statuschip{border:none;color:#fff;font-size:11px;font-weight:800;border-radius:14px;min-height:30px;padding:0 11px;flex-shrink:0}
 .zstart{color:var(--ink)}
 .zactions{margin-top:7px}
@@ -102,12 +111,33 @@ button:active{filter:brightness(1.25)}
   border-radius:9px;min-height:40px;padding:0 14px;display:block}
 
 /* ---------- map extras ---------- */
-.legend{position:absolute;bottom:16px;left:12px;z-index:600;background:rgba(255,255,255,.95);
+.legend{position:absolute;bottom:16px;left:12px;z-index:600;background:var(--legendbg);
   border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:11px;line-height:1.85;max-width:210px}
 .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .legend .sw{display:inline-block;width:12px;height:10px;margin-right:6px;vertical-align:middle;border:1px solid #999}
 .leaflet-tooltip{font-family:inherit;font-size:12px}
-.zlabel{background:transparent;border:none;box-shadow:none;font-weight:800;font-size:13px;color:#7a1f00;text-shadow:0 0 3px #fff,0 0 3px #fff}
+:root:not([data-theme="light"]) .leaflet-popup-content-wrapper,
+:root:not([data-theme="light"]) .leaflet-popup-tip,
+:root:not([data-theme="light"]) .leaflet-tooltip{background:#1b2230;color:var(--ink);border-color:#2b3446}
+:root:not([data-theme="light"]) .leaflet-tooltip-top:before{border-top-color:#1b2230}
+:root:not([data-theme="light"]) .leaflet-popup-content-wrapper a{color:var(--hot)}
+:root:not([data-theme="light"]) .zlabel{background:transparent}
+
+/* ---------- export menu ---------- */
+header{position:relative}
+#exportmenu{position:absolute;top:100%;right:10px;margin-top:6px;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.4);
+  z-index:1600;min-width:260px;overflow:hidden}
+#exportmenu button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:0;
+  color:var(--ink);font-size:13px;font-weight:600;min-height:48px;padding:0 14px}
+#exportmenu button:hover{background:var(--hoverbg)}
+#exportmenu .mhint{font-size:10.5px;color:var(--muted);padding:0 14px 10px;line-height:1.4}
+@media(max-width:430px){
+  .controls{gap:6px}
+  button.icon{min-width:40px}
+  select{font-size:12px;padding-left:8px}
+}
+.zlabel{background:transparent;border:none;box-shadow:none;font-weight:800;font-size:13px;color:var(--zlabel);text-shadow:0 0 3px var(--zshadow),0 0 3px var(--zshadow)}
 .homebtn a{font-size:19px;line-height:30px !important}
 .leaflet-touch .leaflet-bar a{width:34px;height:34px;line-height:34px}
 
@@ -146,7 +176,14 @@ button:active{filter:brightness(1.25)}
       <option value="90">3 months</option>
     </select>
     <button class="icon primary" id="refresh" title="Refresh data" aria-label="Refresh">↻</button>
-    <button class="icon" id="export" title="Share / download analyst JSON" aria-label="Share analyst JSON">⇪</button>
+    <button class="icon" id="export" title="Exports" aria-label="Exports">⇪</button>
+    <button class="icon" id="themebtn" title="Light / dark" aria-label="Toggle theme">☀</button>
+  </div>
+  <div id="exportmenu" hidden>
+    <button data-x="analyst">🤖 Analyst JSON — weekly plan input</button>
+    <button data-x="spotio">📊 Zones CSV — Spotio / territory apps</button>
+    <button data-x="n8n">🔗 Send zones to n8n webhook</button>
+    <div class="mhint">CSV has lat/lon + start addresses per zone. The webhook POSTs the ranked zones as JSON for CRM ingestion.</div>
   </div>
 </header>
 
@@ -173,7 +210,8 @@ button:active{filter:brightness(1.25)}
       <section class="pane" id="pane-leads">
         <div class="leadbar">
           <button id="importcsv">⇧ Import CSV</button>
-          <button id="clearleads" class="ghost">Clear all</button>
+          <button id="airtable">⚡ Airtable</button>
+          <button id="clearleads" class="ghost">Clear</button>
         </div>
         <input type="file" id="csvfile" accept=".csv,text/csv" hidden>
         <div id="leadlist"><div class="empty">No leads yet.</div></div>
@@ -206,12 +244,19 @@ const HOME = [39.9168, -75.3879];          // Media, PA (Delaware County)
 const RADIUS_MI = 120;
 const REFRESH_MS = 15 * 60 * 1000;
 
+// ======================= THEME (command-center dark by default) =======================
+const THEME_KEY='stormstrike-theme';
+let THEME='dark';
+try{ THEME=localStorage.getItem(THEME_KEY)||'dark'; }catch(e){}
+document.documentElement.dataset.theme=THEME;
+const tileUrl=t=>`https://{s}.basemaps.cartocdn.com/${t==='light'?'light_all':'dark_all'}/{z}/{x}/{y}{r}.png`;
+
 // ======================= MAP (degrades to list-only if Leaflet is unreachable) =======================
 const HAS_MAP = typeof L !== 'undefined';
-let map = null, layers = null;
+let map = null, layers = null, baseTiles = null;
 if(HAS_MAP){
   map = L.map('map', {preferCanvas:true, zoomControl:true}).setView([39.9, -75.7], 8);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  baseTiles = L.tileLayer(tileUrl(THEME),
     {attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:18}).addTo(map);
   [30,60,90,120].forEach(mi => L.circle(HOME,{radius:mi*1609.34,color:'#9aa3ad',weight:1,dashArray:'4 6',fill:false}).addTo(map).bindTooltip(mi+' mi'));
   L.circleMarker(HOME,{radius:9,color:'#fff',weight:2,fillColor:'#111',fillOpacity:1}).addTo(map)
@@ -225,7 +270,46 @@ if(HAS_MAP){
       b.innerHTML='<a href="#" title="Back to home base" aria-label="Back to home base">⌂</a>';
       b.onclick=e=>{e.preventDefault();map.setView(HOME,8);}; return b; }});
   map.addControl(new HomeCtl());
-}else{
+  const LocCtl = L.Control.extend({options:{position:'topleft'},
+    onAdd(){ const b=L.DomUtil.create('div','leaflet-bar homebtn');
+      b.innerHTML='<a href="#" id="locbtn" title="My live location" aria-label="My live location">🎯</a>';
+      b.onclick=e=>{e.preventDefault();toggleLocate();}; return b; }});
+  map.addControl(new LocCtl());
+}
+
+// ======================= LIVE LOCATION (for canvassing from the phone) =======================
+let geoWatch=null, geoMarker=null, geoCircle=null, geoCenterOnce=false;
+function toggleLocate(){
+  if(!HAS_MAP) return;
+  const btn=document.getElementById('locbtn');
+  if(geoWatch!=null){
+    navigator.geolocation.clearWatch(geoWatch); geoWatch=null;
+    if(geoMarker){ map.removeLayer(geoMarker); geoMarker=null; }
+    if(geoCircle){ map.removeLayer(geoCircle); geoCircle=null; }
+    if(btn) btn.style.background='';
+    toast('Live location off'); return;
+  }
+  if(!navigator.geolocation){ toast('This browser has no location service'); return; }
+  toast('Locating you…'); geoCenterOnce=true;
+  geoWatch=navigator.geolocation.watchPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!geoMarker){
+      geoMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1})
+        .addTo(map).bindTooltip('You are here');
+      geoCircle=L.circle(ll,{radius:p.coords.accuracy||30,color:'#2563eb',weight:1,fillColor:'#2563eb',fillOpacity:.12}).addTo(map);
+      if(btn) btn.style.background='#2563eb';
+    }else{
+      geoMarker.setLatLng(ll);
+      geoCircle.setLatLng(ll).setRadius(p.coords.accuracy||30);
+    }
+    if(geoCenterOnce){ geoCenterOnce=false; map.setView(ll,Math.max(map.getZoom(),13)); }
+  },err=>{
+    toast(err.code===1?'Location permission denied — allow it for this site in Settings':'Could not get a location fix');
+    if(geoWatch!=null){ navigator.geolocation.clearWatch(geoWatch); geoWatch=null; }
+    if(btn) btn.style.background='';
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+}
+if(!HAS_MAP){
   document.getElementById('map').innerHTML =
     '<div id="nomap">Map library could not load on this connection.<br>Storm reports, targets, and alerts below still work — hit ↻ to retry.</div>';
 }
@@ -403,7 +487,9 @@ function scoreImpactPoints(d){
   return clusters.filter(c=>c.score>=18).sort((a,b)=>b.score-a.score).slice(0,12);
 }
 
+let LAST_ZONES=[];
 function drawZones(clusters){
+  LAST_ZONES=clusters;
   if(HAS_MAP) layers.zones.clearLayers();
   const box=document.getElementById('zones'); box.innerHTML='';
   document.getElementById('zcount').textContent = clusters.length ? ' '+clusters.length : '';
@@ -650,6 +736,82 @@ async function importLeadsCSV(file){
   if(need.length) toast('Address lookup finished');
 }
 
+// --- Airtable sync: the browser talks straight to api.airtable.com with YOUR token,
+// --- stored only on this device. Nothing is sent anywhere else.
+const AT_KEY='stormstrike-airtable';
+function atConfig(){ try{ return JSON.parse(localStorage.getItem(AT_KEY)); }catch(e){ return null; } }
+async function airtableButton(){
+  const cfg=atConfig();
+  if(cfg && cfg.token){ await syncAirtable(cfg); return; }
+  await linkAirtable();
+}
+async function linkAirtable(){
+  const old=atConfig()||{};
+  const token=prompt('Airtable personal access token (create at airtable.com/create/tokens with data.records:read scope — saved only on this device):', old.token||'');
+  if(!token) return;
+  const base=prompt('Base ID (starts with "app"):', old.base||'appCNUQl9ceWR2e4o');
+  if(!base) return;
+  const table=prompt('Table name:', old.table||'Mail Targets');
+  if(!table) return;
+  const cfg={token:token.trim(), base:base.trim(), table:table.trim()};
+  try{ localStorage.setItem(AT_KEY, JSON.stringify(cfg)); }catch(e){}
+  await syncAirtable(cfg);
+}
+async function syncAirtable(cfg){
+  toast('Syncing Airtable…');
+  let offset='', seen=0, added=0;
+  try{
+    do{
+      const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/${encodeURIComponent(cfg.table)}?pageSize=100${offset?'&offset='+encodeURIComponent(offset):''}`,
+        {headers:{Authorization:'Bearer '+cfg.token}});
+      if(!r.ok){
+        toast('Airtable answered HTTP '+r.status+' — check token/base/table');
+        if(r.status===401||r.status===403||r.status===404) setTimeout(linkAirtable,900);
+        return;
+      }
+      const j=await r.json();
+      (j.records||[]).forEach(rec=>{
+        const f=rec.fields||{};
+        const pick=(...names)=>{ for(const n of names){
+          const k=Object.keys(f).find(x=>x.toLowerCase()===n);
+          if(k && f[k]!=null && f[k]!=='') return f[k]; } return ''; };
+        const sval=v=>typeof v==='object'&&v!==null ? (v.name||'') : String(v||'');
+        const name=sval(pick('lead name','owner name','name','customer','homeowner'));
+        const street=sval(pick('address','property address','street address','street'));
+        const town=sval(pick('town','city')), st2=sval(pick('state','st')), zip=sval(pick('zip','zipcode','zip code'));
+        const cs=sval(pick('county/state'));                        // e.g. "Burlington, NJ"
+        const stGuess=st2 || (cs.includes(',') ? cs.split(',').pop().trim() : '');
+        const address=[street,town,stGuess,zip].filter(Boolean).join(', ');
+        const lat=parseFloat(sval(pick('lat','latitude'))), lon=parseFloat(sval(pick('lon','lng','longitude')));
+        const notes=[sval(pick('campaign')), sval(pick('lead tier')),
+          sval(pick('status'))?('Airtable: '+sval(pick('status'))):'',
+          sval(pick('year built'))?('built '+sval(pick('year built'))):'',
+          sval(pick('notes','raw notes'))].filter(Boolean).join(' · ');
+        seen++;
+        if(!address && !isFinite(lat)) return;
+        const id='at:'+rec.id;
+        if(LEADS.some(x=>x.id===id)) return;   // re-sync keeps your statuses
+        LEADS.push({id, name, address, notes, status:'new',
+          lat:isFinite(lat)?lat:null, lon:isFinite(lon)?lon:null});
+        added++;
+      });
+      offset=j.offset||'';
+    }while(offset);
+  }catch(e){ toast('Could not reach Airtable — check your connection'); return; }
+  leadsSave(); renderLeads();
+  toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
+  const need=LEADS.filter(l=>l.lat==null && l.address && l.id.startsWith('at:'));
+  if(need.length) toast(`Locating ${need.length} addresses…`);
+  for(const l of need){  // OSM Nominatim, throttled to 1 req/sec fair use
+    try{
+      const res=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(l.address),null,1);
+      if(res && res[0]){ l.lat=parseFloat(res[0].lat); l.lon=parseFloat(res[0].lon); leadsSave(); renderLeads(); }
+    }catch(e){}
+    await new Promise(r=>setTimeout(r,1100));
+  }
+  if(need.length) toast('Address lookup finished');
+}
+
 function cycleStatus(i){
   const l=LEADS[i]; if(!l) return;
   l.status=STATUSES[(STATUSES.indexOf(l.status)+1)%STATUSES.length];
@@ -662,7 +824,7 @@ function renderLeads(){
   const box=document.getElementById('leadlist'); box.innerHTML='';
   document.getElementById('lcount').textContent = LEADS.length ? ' '+LEADS.length : '';
   if(!LEADS.length){
-    box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses — columns like name, address, city, state, zip (or lat + lon). A ready template is in the repo: <b>leads-template.csv</b>. Statuses you set are saved on this device.</div>';
+    box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses (name, address, city, state, zip — or lat/lon), or <b>⚡ Airtable</b> to pull a table straight from your base (token stays on this device). Statuses you set are saved on this device.</div>';
     return;
   }
   LEADS.forEach((l,idx)=>{
@@ -704,27 +866,67 @@ function buildAnalystInput(){
       .map(l=>({day:+day, risk_level:l, area_description:'SPC categorical polygon — see map overlay'})); }
   return out;
 }
-async function exportAnalystInput(){
-  if(!DATA.reports){ toast('Storm data is still loading — try again in a moment.'); return; }
-  const json = JSON.stringify(buildAnalystInput(), null, 1);
-  // iOS & Android: native share sheet with the file
+// Native share sheet with the file on iOS/Android; clipboard + download on desktop.
+async function shareOrDownload(filename,mime,content,label){
   try{
     if(navigator.canShare){
-      const file = new File([json],'stormstrike-input.json',{type:'application/json'});
+      const file = new File([content],filename,{type:mime});
       if(navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:'StormStrike analyst input'});
-        toast('Analyst JSON shared'); return;
+        await navigator.share({files:[file],title:label});
+        toast(label+' shared'); return;
       }
     }
   }catch(e){ if(e && e.name==='AbortError') return; }
-  // Desktop fallback: clipboard + download
   let copied=false;
-  try{ await navigator.clipboard.writeText(json); copied=true; }catch(e){}
+  try{ await navigator.clipboard.writeText(content); copied=true; }catch(e){}
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([json],{type:'application/json'}));
-  a.download = 'stormstrike-input.json';
+  a.href = URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download = filename;
   a.click(); URL.revokeObjectURL(a.href);
-  toast(copied ? 'Analyst JSON downloaded + copied to clipboard' : 'Analyst JSON downloaded');
+  toast(label+(copied?' downloaded + copied to clipboard':' downloaded'));
+}
+
+async function exportAnalystInput(){
+  if(!DATA.reports){ toast('Storm data is still loading — try again in a moment.'); return; }
+  await shareOrDownload('stormstrike-input.json','application/json',
+    JSON.stringify(buildAnalystInput(), null, 1),'Analyst JSON');
+}
+
+// ======================= ZONE EXPORTS (Spotio CSV + n8n webhook) =======================
+function startAddrFor(c){ return REVCACHE[c.lat.toFixed(3)+','+c.lon.toFixed(3)] || ''; }
+function csvCell(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+
+async function exportSpotioCSV(){
+  if(!LAST_ZONES.length){ toast('No target zones in this window to export'); return; }
+  const head=['Rank','Zone','Latitude','Longitude','Address','Score','Max Hail (in)',
+    'Newest Event (days ago)','Drive (mi)','Wind Reports','Gusts >=60mph','Notes'];
+  const rows=LAST_ZONES.map((c,i)=>[
+    i+1, c.label, c.lat.toFixed(5), c.lon.toFixed(5), startAddrFor(c), c.score, c.maxHail||'',
+    c.dAgo, c.mi, c.windN, c.gustN, 'Storm-hit swath — verify roofs block by block'
+  ].map(csvCell).join(','));
+  await shareOrDownload('stormstrike-zones.csv','text/csv',
+    [head.map(csvCell).join(','),...rows].join('\r\n'),'Zones CSV');
+}
+
+function zonesPayload(){
+  return LAST_ZONES.map((c,i)=>({ rank:i+1, zone_name:c.label,
+    lat:+c.lat.toFixed(5), lon:+c.lon.toFixed(5), start_address:startAddrFor(c)||null,
+    target_score:c.score, max_hail_in:c.maxHail||null, newest_event_days_ago:c.dAgo,
+    drive_miles:c.mi, wind_reports:c.windN, gusts_60mph:c.gustN }));
+}
+async function sendToN8n(){
+  if(!LAST_ZONES.length){ toast('No target zones to send yet'); return; }
+  let saved=''; try{ saved=localStorage.getItem('stormstrike-n8n')||''; }catch(e){}
+  const url=prompt('n8n webhook URL (saved on this device):',saved);
+  if(!url) return;
+  try{ new URL(url); }catch(e){ toast('That is not a valid URL'); return; }
+  try{ localStorage.setItem('stormstrike-n8n',url); }catch(e){}
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source:'stormstrike', sent_at:new Date().toISOString(),
+        window_days:CUR_DAYS, zones:zonesPayload()})});
+    toast(r.ok ? `Sent ${LAST_ZONES.length} zones to n8n ✓` : 'Webhook answered HTTP '+r.status);
+  }catch(e){ toast('Could not reach the webhook — check the URL and n8n CORS (Allowed Origins)'); }
 }
 
 // ======================= ORCHESTRATION =======================
@@ -769,14 +971,35 @@ async function refreshAll(){
 }
 
 document.getElementById('refresh').onclick=refreshAll;
-document.getElementById('export').onclick=exportAnalystInput;
 document.getElementById('range').onchange=()=>{ ALL90 ? applyWindow() : refreshAll(); };
+
+// export menu
+const emenu=document.getElementById('exportmenu');
+document.getElementById('export').onclick=e=>{ e.stopPropagation(); emenu.hidden=!emenu.hidden; };
+emenu.addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>{ if(!emenu.hidden) emenu.hidden=true; });
+emenu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  emenu.hidden=true;
+  ({analyst:exportAnalystInput, spotio:exportSpotioCSV, n8n:sendToN8n})[b.dataset.x]();
+});
+
+// theme toggle
+const themeBtn=document.getElementById('themebtn');
+themeBtn.textContent = THEME==='light' ? '🌙' : '☀';
+themeBtn.onclick=()=>{
+  THEME = THEME==='light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme=THEME;
+  themeBtn.textContent = THEME==='light' ? '🌙' : '☀';
+  if(baseTiles) baseTiles.setUrl(tileUrl(THEME));
+  try{ localStorage.setItem(THEME_KEY,THEME); }catch(e){}
+};
 document.getElementById('importcsv').onclick=()=>document.getElementById('csvfile').click();
 document.getElementById('csvfile').onchange=e=>{
   const f=e.target.files && e.target.files[0];
   if(f) importLeadsCSV(f).catch(()=>toast('Could not read that CSV'));
   e.target.value='';
 };
+document.getElementById('airtable').onclick=()=>airtableButton();
 document.getElementById('clearleads').onclick=()=>{
   if(!LEADS.length){ toast('No leads to clear'); return; }
   if(confirm('Delete all '+LEADS.length+' leads and their statuses from this device?')){
