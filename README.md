@@ -68,12 +68,23 @@ saved on your device. Every lead and every target zone has a **🧭 Navigate** b
 turn-by-turn directions. Top target zones also show a street-level **"Start near"** address —
 a concrete corner to park the truck and start knocking.
 
-## Get the AI weekly plan
-Open the live app, pick your date range, and tap **⇪** in the header. On iPhone/Android it
-opens the share sheet with `stormstrike-input.json` (share it straight into the Claude app);
-on desktop it downloads the file and copies it to your clipboard. That file is the exact input
-the `PROMPT.md` analyst expects — paste it into a Claude session along with `PROMPT.md` and you
-get back the ranked, routed Mon-Fri canvassing plan.
+## Command-center look
+The app defaults to a dark, high-contrast command-center theme (dark map tiles included).
+The **☀/🌙** button in the header flips light/dark; your choice is remembered on the device.
+
+## Exports — the ⇪ button
+The **⇪** button opens a small export menu with three one-tap actions:
+
+1. **🤖 Analyst JSON** — the exact input `PROMPT.md` expects. On iPhone/Android it opens the
+   share sheet (send it straight into the Claude app); on desktop it downloads + copies to
+   clipboard. Paste it into a Claude session with `PROMPT.md` to get the ranked, routed
+   Mon-Fri canvassing plan.
+2. **📊 Zones CSV** — the ranked target zones (rank, name, lat/lon, start address, score, hail,
+   recency, drive miles, wind counts) formatted for territory apps like Spotio: import it as a
+   pin list.
+3. **🔗 Send to n8n** — POSTs the ranked zones as JSON to an n8n webhook URL you enter once
+   (saved on the device) for automated CRM ingestion. In your n8n Webhook node, allow this
+   site's origin under CORS "Allowed Origins" (or `*`).
 
 Because all the data is fetched live in the browser, the GitHub page is always current — you
 never have to re-upload anything. To change the home base or radius, edit the `CONFIG` block at
