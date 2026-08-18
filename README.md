@@ -6,6 +6,15 @@ the National Weather Service's forecast risk for **upcoming** storms, and lists 
 alerts. No server, no database, no API key — it fetches public NWS data client-side every time
 it loads and auto-refreshes every 15 minutes.
 
+## Start in 60 seconds
+1. **Open** https://sethk727-crypto.github.io/Roofing-Master-Data/ on your iPhone in Safari.
+2. **Install it**: Share button → **Add to Home Screen** → Add. It's now an app with a bolt icon.
+3. **Link your leads once**: 📍 Leads → **⚡ Airtable** → follow the little form (make a
+   read-only token, paste it, tap Save). Done — from now on storms *and* leads load themselves.
+
+Daily use: open the app → red circles are today's best streets → tap one → read the door
+script → tap Navigate → knock. Tap lead pins to mark Visited as you go.
+
 ## What's in here
 - **`index.html`** — the entire app. Open it and it works.
 - **`PROMPT.md`** — the ROOF-IQ Storm Targeting Analyst master prompt (feed it the live data to
