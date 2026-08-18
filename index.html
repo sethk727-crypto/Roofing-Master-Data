@@ -16,11 +16,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
-  /* command-center dark (default) */
-  --ink:#e8ecf4; --muted:#98a2b6; --panel:#141a24; --line:#252d3b; --bg:#0d1117;
-  --hot:#f97316; --fresh:#22a04c; --wind:#5b7bf0; --gust:#a05ac0;
-  --chipbg:#1b2230; --hoverbg:#1a2333; --alertbg:#2a1917; --daybg:#271b10; --btn:#2a3550;
-  --grab:#3a445a; --legendbg:rgba(20,26,36,.94); --zlabel:#ffb38a; --zshadow:#000; --mapbg:#0b0e13;
+  /* command-center true-black (default) — battery-friendly on OLED in the field */
+  --ink:#ecedef; --muted:#9b9ba6; --panel:#101013; --line:#26262c; --bg:#09090b;
+  --hot:#f97316; --fresh:#10b981; --wind:#5b7bf0; --gust:#a05ac0;
+  --chipbg:#1a1a1f; --hoverbg:#1b1b21; --alertbg:#261513; --daybg:#25190e; --btn:#2e2e36;
+  --grab:#3f3f49; --legendbg:rgba(12,12,15,.94); --zlabel:#ffb38a; --zshadow:#000; --mapbg:#0a0a0c;
   --slgt:#f6e58d; --enh:#e59866; --mdt:#e74c3c; --high:#c0392b; --mrgl:#a9dfbf; --tstm:#cfe8cf;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
 }
@@ -71,7 +71,21 @@ button:active{filter:brightness(1.25)}
 .pill{display:inline-flex;align-items:center;gap:5px;background:var(--chipbg);border:1px solid var(--line);
   border-radius:20px;padding:3px 9px;font-size:10.5px;color:var(--muted)}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:#8a94a8;flex-shrink:0}
-.pill.ok .dot{background:#31c66d} .pill.warn .dot{background:#e0a800} .pill.err .dot{background:#e05a4d}
+.pill.ok .dot{background:#10b981;animation:livepulse 2s ease-in-out infinite}
+.pill.warn .dot{background:#e0a800} .pill.err .dot{background:#e05a4d}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}50%{box-shadow:0 0 0 4px rgba(16,185,129,0)}}
+/* pulsing live-GPS blue dot */
+.gpswrap{background:none;border:none}
+.gpsdot{width:16px;height:16px;border-radius:50%;background:#2563eb;border:2.5px solid #fff;
+  box-shadow:0 0 6px rgba(0,0,0,.5);position:relative}
+.gpsdot::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid #2563eb;
+  animation:gpsping 1.8s ease-out infinite}
+@keyframes gpsping{0%{transform:scale(.7);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+/* zone filter chips */
+.filterbar{display:flex;gap:6px;margin-bottom:9px}
+.fchip{background:var(--chipbg);border:1px solid var(--line);border-radius:16px;color:var(--muted);
+  font-size:12px;font-weight:700;min-height:36px;padding:0 13px}
+.fchip.active{background:var(--hot);border-color:var(--hot);color:#fff}
 #updated{font-size:10.5px;color:var(--muted);margin-left:auto}
 #tabs{display:flex;gap:2px;padding:4px 8px 0;border-bottom:1px solid var(--line);flex-shrink:0;
   overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -207,7 +221,13 @@ header{position:relative}
       <button class="tab" data-tab="spc">🌩 Forecast</button>
     </nav>
     <div class="tabpanes">
-      <section class="pane active" id="pane-zones"><div id="zones"><div class="empty">Loading storm reports…</div></div></section>
+      <section class="pane active" id="pane-zones">
+        <div class="filterbar">
+          <button class="fchip active" data-f="all">All zones</button>
+          <button class="fchip" data-f="red">🔴 80+ only</button>
+        </div>
+        <div id="zones"><div class="empty">Loading storm reports…</div></div>
+      </section>
       <section class="pane" id="pane-history"><div id="history"><div class="empty">Loading 3-month history…</div></div></section>
       <section class="pane" id="pane-leads">
         <div class="leadbar">
@@ -261,7 +281,7 @@ const tileUrl=t=>`https://{s}.basemaps.cartocdn.com/${t==='light'?'light_all':'d
 const HAS_MAP = typeof L !== 'undefined';
 let map = null, layers = null, baseTiles = null;
 if(HAS_MAP){
-  map = L.map('map', {preferCanvas:true, zoomControl:true}).setView([39.9, -75.7], 8);
+  map = L.map('map', {preferCanvas:true, zoomControl:true, doubleClickZoom:false}).setView([39.9, -75.7], 8);
   baseTiles = L.tileLayer(tileUrl(THEME),
     {attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:18}).addTo(map);
   [30,60,90,120].forEach(mi => L.circle(HOME,{radius:mi*1609.34,color:'#9aa3ad',weight:1,dashArray:'4 6',fill:false}).addTo(map).bindTooltip(mi+' mi'));
@@ -300,15 +320,25 @@ function toggleLocate(){
   geoWatch=navigator.geolocation.watchPosition(p=>{
     const ll=[p.coords.latitude,p.coords.longitude];
     if(!geoMarker){
-      geoMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1})
-        .addTo(map).bindTooltip('You are here');
+      geoMarker=L.marker(ll,{icon:L.divIcon({className:'gpswrap',html:'<div class="gpsdot"></div>',iconSize:[16,16],iconAnchor:[8,8]}),
+        interactive:false, keyboard:false}).addTo(map);
       geoCircle=L.circle(ll,{radius:p.coords.accuracy||30,color:'#2563eb',weight:1,fillColor:'#2563eb',fillOpacity:.12}).addTo(map);
       if(btn) btn.style.background='#2563eb';
     }else{
       geoMarker.setLatLng(ll);
       geoCircle.setLatLng(ll).setRadius(p.coords.accuracy||30);
     }
-    if(geoCenterOnce){ geoCenterOnce=false; map.setView(ll,Math.max(map.getZoom(),13)); }
+    if(geoCenterOnce){
+      geoCenterOnce=false;
+      map.setView(ll,Math.max(map.getZoom(),13));
+      // hand the rep their marching orders: distance to the nearest hot zone
+      if(LAST_ZONES.length){
+        const pick=LAST_ZONES.filter(c=>c.score>=80)[0] ? LAST_ZONES.filter(c=>c.score>=80) : LAST_ZONES;
+        let best=pick[0], bd=Infinity;
+        pick.forEach(c=>{ const d=miBetween(ll,[c.lat,c.lon]); if(d<bd){bd=d;best=c;} });
+        toast(`You're ${Math.round(bd)} mi from #${LAST_ZONES.indexOf(best)+1} ${best.label} (score ${best.score})`);
+      }
+    }
   },err=>{
     toast(err.code===1?'Location permission denied — allow it for this site in Settings':'Could not get a location fix');
     if(geoWatch!=null){ navigator.geolocation.clearWatch(geoWatch); geoWatch=null; }
@@ -500,12 +530,22 @@ function scoreImpactPoints(d){
   return clusters.filter(c=>c.score>=18).sort((a,b)=>b.score-a.score).slice(0,12);
 }
 
-let LAST_ZONES=[];
-function drawZones(clusters){
-  LAST_ZONES=clusters;
+let LAST_ZONES=[], ZFILTER='all';
+document.querySelectorAll('.fchip').forEach(b=>b.onclick=()=>{
+  ZFILTER=b.dataset.f;
+  document.querySelectorAll('.fchip').forEach(x=>x.classList.toggle('active',x===b));
+  drawZones(LAST_ZONES);
+});
+function drawZones(all){
+  LAST_ZONES=all;
+  const clusters = ZFILTER==='red' ? all.filter(c=>c.score>=80) : all;
   if(HAS_MAP) layers.zones.clearLayers();
   const box=document.getElementById('zones'); box.innerHTML='';
-  document.getElementById('zcount').textContent = clusters.length ? ' '+clusters.length : '';
+  document.getElementById('zcount').textContent = all.length ? ' '+all.length : '';
+  if(!clusters.length && all.length){
+    box.innerHTML='<div class="empty">No 80+ red zones in this window. Switch back to All zones.</div>';
+    return;
+  }
   if(!clusters.length){
     const w = ALL90 ? windowed(ALL90, CUR_DAYS) : {hail:[],wind:[],gust:[]};
     const n = w.hail.length + w.wind.length + w.gust.length;
@@ -525,8 +565,8 @@ function drawZones(clusters){
     }
     return;
   }
-  clusters.forEach((c,i)=>{
-    const rank=i+1;
+  clusters.forEach(c=>{
+    const rank=all.indexOf(c)+1;
     // Knock-zone color: RED = dispatch now, ORANGE = secondary, YELLOW = investigate
     const zc = c.score>=80 ? {c:'#e11d48',f:.16,w:2.5} : c.score>=60 ? {c:'#f97316',f:.10,w:2} : {c:'#eab308',f:.06,w:1.5};
     if(HAS_MAP){
@@ -583,6 +623,7 @@ function showZoneDetail(c,rank){
     <div class="zactions">
       <a class="navbtn" href="#" id="zdcopy">📋 Copy script</a>
       <a class="navbtn" href="${navUrl(c.lat,c.lon)}" target="_blank" rel="noopener">🧭 Navigate</a>
+      <a class="navbtn" href="#" id="zdrow">📎 Copy Spotio row</a>
       <a class="navbtn" href="#" id="zdcsv">📊 Zone CSV</a>
     </div>`;
   document.getElementById('zones').prepend(el);
@@ -590,6 +631,13 @@ function showZoneDetail(c,rank){
   document.getElementById('zdclose').onclick=()=>el.remove();
   document.getElementById('zdcopy').onclick=async e=>{ e.preventDefault();
     try{ await navigator.clipboard.writeText(script); toast('Door script copied'); }catch(err){ toast('Could not copy on this browser'); } };
+  document.getElementById('zdrow').onclick=async e=>{ e.preventDefault();
+    const head=['Rank','Zone','Latitude','Longitude','Address','Score','Max Hail (in)','Newest Event (days ago)','Drive (mi)'];
+    const row=[rank,c.label,c.lat.toFixed(5),c.lon.toFixed(5),startAddrFor(c),c.score,c.maxHail||'',c.dAgo,c.mi];
+    try{
+      await navigator.clipboard.writeText(head.map(csvCell).join(',')+'\r\n'+row.map(csvCell).join(','));
+      toast('Copied to clipboard!');
+    }catch(err){ toast('Could not copy on this browser'); } };
   document.getElementById('zdcsv').onclick=async e=>{ e.preventDefault();
     const head=['Rank','Zone','Latitude','Longitude','Address','Score','Max Hail (in)','Newest Event (days ago)','Drive (mi)'];
     const row=[rank,c.label,c.lat.toFixed(5),c.lon.toFixed(5),startAddrFor(c),c.score,c.maxHail||'',c.dAgo,c.mi];
