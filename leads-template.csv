@@ -1,0 +1,4 @@
+name,address,city,state,zip,notes,lat,lon
+Sample Homeowner,123 W State St,Media,PA,19063,3-tab shingles spotted from street,,
+Second Example,201 E Baltimore Ave,Media,PA,19063,leave blank lat/lon to auto-locate the address,,
+Pinned Example,,,,,"already has coordinates, so lat/lon are filled in",39.9168,-75.3879
