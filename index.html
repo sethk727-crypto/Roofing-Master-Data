@@ -122,6 +122,21 @@ button:active{filter:brightness(1.25)}
 .navbtn{display:inline-block;font-size:12px;font-weight:700;color:var(--hot);text-decoration:none;
   border:1px solid var(--line);border-radius:8px;padding:7px 11px}
 .histnote{font-size:11px;color:var(--muted);padding:2px 2px 8px;line-height:1.5}
+.atfield{display:block;width:100%;margin-top:8px;background:var(--chipbg);border:1px solid var(--line);
+  border-radius:9px;color:var(--ink);font:inherit;font-size:13px;min-height:44px;padding:0 12px}
+.atfield::placeholder{color:var(--muted)}
+.atsavebtn{margin-top:10px;width:100%;background:var(--hot);border:none;border-radius:9px;
+  color:#fff;font-weight:700;min-height:46px}
+#welcome{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.6);display:flex;
+  align-items:center;justify-content:center;padding:22px}
+#welcome[hidden]{display:none}
+#welcome .wcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:20px 18px calc(16px + var(--sab));max-width:420px;width:100%}
+#welcome h2{font-size:17px;margin-bottom:12px}
+#welcome p{font-size:13.5px;color:var(--muted);line-height:1.65;margin-bottom:10px}
+#welcome p b{color:var(--ink)}
+#welcome button{width:100%;background:var(--hot);border:none;border-radius:10px;color:#fff;
+  font-weight:800;min-height:48px;font-size:15px;margin-top:6px}
 .empty{font-size:13px;color:var(--muted);padding:10px 2px;font-style:italic;line-height:1.6}
 .empty button{margin-top:8px;background:var(--hot);border:none;color:#fff;font-weight:700;
   border-radius:9px;min-height:40px;padding:0 14px;display:block}
@@ -237,6 +252,16 @@ header{position:relative}
           <button id="clearleads" class="ghost">Clear</button>
         </div>
         <input type="file" id="csvfile" accept=".csv,text/csv" hidden>
+        <div id="atsetup" class="card" style="cursor:default" hidden>
+          <div class="name">⚡ Link your Airtable — one time only</div>
+          <div class="meta" style="margin-top:6px">1. Tap the button below. Make a token — give it <b>data.records:read</b> and pick your base.<br>
+            2. Paste the token here. It stays on this phone. After this, your leads load themselves.</div>
+          <div class="zactions"><a class="navbtn" href="https://airtable.com/create/tokens" target="_blank" rel="noopener">Open Airtable tokens page</a></div>
+          <input class="atfield" id="attoken" type="password" placeholder="Paste token (starts with pat…)" autocomplete="off">
+          <input class="atfield" id="atbase" placeholder="Base ID" value="appCNUQl9ceWR2e4o" autocomplete="off">
+          <input class="atfield" id="attable" placeholder="Table name" value="Mail Targets" autocomplete="off">
+          <button id="atsave" class="atsavebtn">Save & sync my leads</button>
+        </div>
         <div id="leadlist"><div class="empty">No leads yet.</div></div>
       </section>
       <section class="pane" id="pane-alerts"><div id="alerts"><div class="empty">Loading…</div></div></section>
@@ -251,6 +276,16 @@ header{position:relative}
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+
+<div id="welcome" hidden>
+  <div class="wcard">
+    <h2>⚡ StormStrike — 10 seconds to learn</h2>
+    <p>🌩 <b>The map shows where storms hit.</b> Red circles are the best streets to knock today. Fresh data loads by itself every 15 minutes.</p>
+    <p>👆 <b>Tap a circle</b> to see the storm facts, what to say at the door, and a Navigate button.</p>
+    <p>📍 <b>Leads tab is your address list.</b> Link your Airtable once and new leads show up on their own. Tap a pin to mark Visited.</p>
+    <button id="wgo">Let's go</button>
+  </div>
+</div>
 
 <div class="legend">
   <span class="dot" style="background:#e11d48"></span><b>RED zone</b> — dispatch (80+)<br>
@@ -895,20 +930,30 @@ function atConfig(){ try{ return JSON.parse(localStorage.getItem(AT_KEY)); }catc
 async function airtableButton(){
   const cfg=atConfig();
   if(cfg && cfg.token){ await syncAirtable(cfg); return; }
-  await linkAirtable();
+  linkAirtable();
 }
-async function linkAirtable(){
+function linkAirtable(){
+  const lt=document.querySelector('.tab[data-tab="leads"]'); if(lt) lt.click();
   const old=atConfig()||{};
-  const token=prompt('Airtable personal access token (create at airtable.com/create/tokens with data.records:read scope — saved only on this device):', old.token||'');
-  if(!token) return;
-  const base=prompt('Base ID (starts with "app"):', old.base||'appCNUQl9ceWR2e4o');
-  if(!base) return;
-  const table=prompt('Table name:', old.table||'Mail Targets');
-  if(!table) return;
-  const cfg={token:token.trim(), base:base.trim(), table:table.trim()};
-  try{ localStorage.setItem(AT_KEY, JSON.stringify(cfg)); }catch(e){}
-  await syncAirtable(cfg);
+  const box=document.getElementById('atsetup');
+  if(old.token) document.getElementById('attoken').value=old.token;
+  if(old.base) document.getElementById('atbase').value=old.base;
+  if(old.table) document.getElementById('attable').value=old.table;
+  box.hidden=false;
+  box.scrollIntoView({block:'nearest'});
+  document.getElementById('attoken').focus();
 }
+document.getElementById('atsave').onclick=async()=>{
+  const token=document.getElementById('attoken').value.trim();
+  const base=document.getElementById('atbase').value.trim();
+  const table=document.getElementById('attable').value.trim();
+  if(!token){ toast('Paste your Airtable token first'); return; }
+  if(!base || !table){ toast('Base ID and table name are both needed'); return; }
+  const cfg={token, base, table};
+  try{ localStorage.setItem(AT_KEY, JSON.stringify(cfg)); }catch(e){}
+  document.getElementById('atsetup').hidden=true;
+  await syncAirtable(cfg);
+};
 let AT_SYNCING=false;
 async function syncAirtable(cfg, quiet){
   if(AT_SYNCING) return;
@@ -975,7 +1020,7 @@ function renderLeads(){
   const box=document.getElementById('leadlist'); box.innerHTML='';
   document.getElementById('lcount').textContent = LEADS.length ? ' '+LEADS.length : '';
   if(!LEADS.length){
-    box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses (name, address, city, state, zip — or lat/lon), or <b>⚡ Airtable</b> to pull a table straight from your base (token stays on this device). Statuses you set are saved on this device.</div>';
+    box.innerHTML='<div class="empty">No leads yet. Easiest way: tap <b>⚡ Airtable</b> above, link it once, and your leads load themselves forever. Or tap <b>⇧ Import CSV</b> with a file of addresses (name, address, city, state, zip — or lat/lon).</div>';
     return;
   }
   const LIST_CAP=250;   // pins go on the map for every lead; the card list stays snappy
@@ -1178,6 +1223,17 @@ if(cached){
   applyWindow(); renderHistory();
   document.getElementById('updated').textContent='Saved '+new Date(cached.ts).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
+// first-open welcome (once per device)
+try{
+  if(!localStorage.getItem('stormstrike-welcomed')){
+    const w=document.getElementById('welcome'); w.hidden=false;
+    document.getElementById('wgo').onclick=()=>{
+      w.hidden=true;
+      try{ localStorage.setItem('stormstrike-welcomed','1'); }catch(e){}
+    };
+  }
+}catch(e){}
+
 refreshAll();
 // hands-free lead sync: if Airtable is linked, pull new leads on every open
 // and alongside each 15-minute weather refresh — no manual imports needed
