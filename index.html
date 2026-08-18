@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StormStrike — Live Roof Lead Radar</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --ink:#161a20; --muted:#61697a; --panel:#ffffff; --line:#e4e7ec; --bg:#f3f5f8;
+  --hot:#c2410c; --fresh:#1a7f37; --wind:#3b5bdb; --gust:#7c2d92;
+  --slgt:#f6e58d; --enh:#e59866; --mdt:#e74c3c; --high:#c0392b; --mrgl:#a9dfbf; --tstm:#cfe8cf;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+header{padding:11px 18px;background:linear-gradient(90deg,#161a20,#243044);color:#fff;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:16px;font-weight:800;letter-spacing:.02em}
+header h1 span{color:#f6a56b}
+.controls{display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap}
+select,button{font:inherit;font-size:12px;border-radius:7px;border:1px solid #3a4763;background:#1e2740;color:#fff;padding:6px 10px;cursor:pointer}
+button.primary{background:#c2410c;border-color:#c2410c;font-weight:700}
+button:hover{filter:brightness(1.12)}
+.status{font-size:11px;color:#b7c0d4;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;background:#1e2740;border:1px solid #33405c;border-radius:20px;padding:2px 9px;font-size:11px}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:#8a94a8}
+.pill.ok .dot{background:#31c66d} .pill.warn .dot{background:#e0a800} .pill.err .dot{background:#e05a4d}
+#wrap{flex:1;display:flex;min-height:0}
+#map{flex:1;background:#dfe4ea}
+#side{width:360px;max-width:44vw;overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);padding:12px 12px 40px}
+#side h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 8px;display:flex;justify-content:space-between}
+#side h2:first-child{margin-top:2px}
+.card{border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s}
+.card:hover{background:#f5f8ff}
+.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card .name{font-size:13px;font-weight:700}
+.card .score{font-size:15px;font-weight:800;color:var(--hot)}
+.card .meta{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.badge{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:6px;color:#fff;vertical-align:middle}
+.badge.fresh{background:var(--fresh)} .badge.hail{background:var(--hot)} .badge.alert{background:#b3261e}
+.alertcard{border-left:4px solid #b3261e;background:#fff5f4}
+.empty{font-size:12px;color:var(--muted);padding:8px 2px;font-style:italic}
+.legend{position:absolute;bottom:16px;left:12px;z-index:600;background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:11px;line-height:1.85;max-width:210px}
+.legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.legend .sw{display:inline-block;width:12px;height:10px;margin-right:6px;vertical-align:middle;border:1px solid #999}
+.leaflet-tooltip{font-family:inherit;font-size:12px}
+.zlabel{background:transparent;border:none;box-shadow:none;font-weight:800;font-size:13px;color:#7a1f00;text-shadow:0 0 3px #fff,0 0 3px #fff}
+footer{font-size:10.5px;color:var(--muted);padding:6px 14px;background:var(--panel);border-top:1px solid var(--line)}
+a{color:var(--hot)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Storm<span>Strike</span> — Live Roof Lead Radar</h1>
+  <div class="status" id="status">
+    <span class="pill" id="p-lsr"><span class="dot"></span>Storm reports</span>
+    <span class="pill" id="p-alert"><span class="dot"></span>NWS alerts</span>
+    <span class="pill" id="p-spc"><span class="dot"></span>Forecast risk</span>
+    <span id="updated"></span>
+  </div>
+  <div class="controls">
+    <select id="range">
+      <option value="3">Last 72 hours</option>
+      <option value="7" selected>Last 7 days</option>
+      <option value="14">Last 14 days</option>
+      <option value="30">Last 30 days</option>
+    </select>
+    <button class="primary" id="refresh">↻ Refresh</button>
+  </div>
+</header>
+
+<div id="wrap">
+  <div id="map"></div>
+  <div id="side">
+    <h2>⚡ Best impact points <span id="zcount"></span></h2>
+    <div id="zones"><div class="empty">Loading storm reports…</div></div>
+    <h2>🚨 Active NWS alerts <span id="acount"></span></h2>
+    <div id="alerts"><div class="empty">Loading…</div></div>
+    <h2>🌩 Forecast risk (SPC)</h2>
+    <div id="spc"><div class="empty">Loading outlook…</div></div>
+  </div>
+</div>
+
+<footer>
+  Home base: Media, PA · 120-mi radius · Data: <a href="https://mesonet.agron.iastate.edu/" target="_blank">Iowa Environmental Mesonet</a> (NWS Local Storm Reports) +
+  <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">api.weather.gov</a> (live alerts) + SPC convective outlook.
+  Spotter reports — ground-truth before promising anything. Auto-refreshes every 15 min.
+</footer>
+
+<div class="legend">
+  <span class="dot" style="background:#c2410c"></span>Hail ≥0.75″ (sized by stone)<br>
+  <span class="dot" style="background:#f0a06c"></span>Hail &lt;0.75″<br>
+  <span class="dot" style="background:#1a7f37"></span>Wind damage — last 4 days<br>
+  <span class="dot" style="background:#3b5bdb"></span>Wind damage — older<br>
+  <span class="dot" style="background:#7c2d92"></span>Measured gust ≥60 mph<br>
+  <span class="sw" style="background:#e59866"></span>SPC storm-risk area (forecast)
+</div>
+
+<script>
+// ======================= CONFIG =======================
+const HOME = [39.9168, -75.3879];          // Media, PA (Delaware County)
+const RADIUS_MI = 120;
+const REFRESH_MS = 15 * 60 * 1000;
+const UA = "StormStrike-RoofRadar/1.0 (roofing lead tool)";
+
+// ======================= MAP =======================
+const map = L.map('map', {preferCanvas:true}).setView([39.9, -75.7], 8);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  {attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:18}).addTo(map);
+[30,60,90,120].forEach(mi => L.circle(HOME,{radius:mi*1609.34,color:'#9aa3ad',weight:1,dashArray:'4 6',fill:false}).addTo(map).bindTooltip(mi+' mi'));
+L.circleMarker(HOME,{radius:9,color:'#fff',weight:2,fillColor:'#111',fillOpacity:1}).addTo(map)
+  .bindTooltip('<b>HOME BASE</b><br>Media, PA',{direction:'top'});
+
+const layers = { spc:L.layerGroup().addTo(map), hail:L.layerGroup().addTo(map),
+                 wind:L.layerGroup().addTo(map), gust:L.layerGroup().addTo(map),
+                 zones:L.layerGroup().addTo(map), alerts:L.layerGroup().addTo(map) };
+
+// ======================= HELPERS =======================
+function miBetween(a,b){
+  const R=3958.8, p1=a[0]*Math.PI/180, p2=b[0]*Math.PI/180;
+  const dp=(b[0]-a[0])*Math.PI/180, dl=(b[1]-a[1])*Math.PI/180;
+  const x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.asin(Math.sqrt(x));
+}
+function daysAgo(iso){ return (Date.now()-new Date(iso).getTime())/86400000; }
+function setPill(id,state,txt){ const e=document.getElementById(id); e.className='pill '+state;
+  e.innerHTML='<span class="dot"></span>'+txt; }
+function iso(d){ return d.toISOString().split('.')[0]+'Z'; }
+async function getJSON(url,headers){
+  const r = await fetch(url,{headers:headers||{}});
+  if(!r.ok) throw new Error(url+' → '+r.status);
+  return r.json();
+}
+
+// ======================= 1. STORM REPORTS (Mesonet LSR) =======================
+async function loadLSR(days){
+  setPill('p-lsr','warn','Storm reports…');
+  const ets = new Date(), sts = new Date(Date.now()-days*86400000);
+  const url = `https://mesonet.agron.iastate.edu/api/1/nws/lsrs_by_point.json`
+    + `?lon=${HOME[1]}&lat=${HOME[0]}&radius_miles=${RADIUS_MI}`
+    + `&begints=${iso(sts)}&endts=${iso(ets)}`;
+  const gj = await getJSON(url);
+  const hail=[], wind=[], gust=[];
+  (gj.features||[]).forEach(f=>{
+    const p=f.properties||{}, g=f.geometry||{};
+    if(!g.coordinates) return;
+    const lon=g.coordinates[0], lat=g.coordinates[1];
+    const tt=(p.typetext||p.type||'').toUpperCase();
+    const mag=parseFloat(p.magnitude)||0;
+    const rec={lat,lon,mag,valid:p.valid,city:p.city||'',county:p.county||'',st:p.st||p.state||''};
+    if(tt.includes('HAIL')) hail.push(rec);
+    else if(tt.includes('TSTM WND DMG')||tt==='NON-TSTM WND DMG') wind.push(rec);
+    else if(tt.includes('TSTM WND GST')||tt.includes('GST')){ if(mag>=60) gust.push(rec); }
+  });
+  return {hail,wind,gust};
+}
+
+function drawReports(d){
+  layers.hail.clearLayers(); layers.wind.clearLayers(); layers.gust.clearLayers();
+  d.hail.forEach(h=>{
+    const claim=h.mag>=0.75;
+    L.circleMarker([h.lat,h.lon],{radius:5+h.mag*8,color:'#7a2408',weight:1.5,
+      fillColor:claim?'#c2410c':'#f0a06c',fillOpacity:.82}).addTo(layers.hail)
+      .bindTooltip(`<b>HAIL ${h.mag}″</b> ${claim?'— claim-viable':''}<br>${h.city}, ${h.county} Co ${h.st}<br>${new Date(h.valid).toLocaleString()}`,{direction:'top'});
+  });
+  d.wind.forEach(w=>{
+    const fresh=daysAgo(w.valid)<=4;
+    L.circleMarker([w.lat,w.lon],{radius:fresh?6:4.5,color:fresh?'#0f5c26':'#22336e',weight:1,
+      fillColor:fresh?'#1a7f37':'#3b5bdb',fillOpacity:fresh?.8:.55}).addTo(layers.wind)
+      .bindTooltip(`<b>Wind damage${fresh?' (last 4 days)':''}</b><br>${w.city}, ${w.county} Co ${w.st}<br>${new Date(w.valid).toLocaleString()}`,{direction:'top'});
+  });
+  d.gust.forEach(g=>{
+    L.circleMarker([g.lat,g.lon],{radius:7,color:'#4a1259',weight:2,fillColor:'#7c2d92',fillOpacity:.55}).addTo(layers.gust)
+      .bindTooltip(`<b>${g.mag} mph gust</b><br>${g.city}, ${g.county} Co ${g.st}<br>${new Date(g.valid).toLocaleString()}`,{direction:'top'});
+  });
+}
+
+// ======================= IMPACT-POINT SCORING (client-side clustering) =======================
+function scoreImpactPoints(d){
+  // Seed clusters on claim-viable hail; fold in nearby hail + wind + gusts.
+  const pts=[];
+  d.hail.filter(h=>h.mag>=0.5).forEach(h=>pts.push({...h,kind:'hail'}));
+  // If little/no hail, seed on dense fresh wind instead
+  if(pts.length<3) d.wind.filter(w=>daysAgo(w.valid)<=10).forEach(w=>pts.push({...w,mag:0,kind:'wind'}));
+  const clusters=[];
+  pts.forEach(p=>{
+    let c=clusters.find(c=>miBetween([c.lat,c.lon],[p.lat,p.lon])<9);
+    if(!c){ c={lat:p.lat,lon:p.lon,members:[],maxHail:0,newest:p.valid,windN:0,gustN:0}; clusters.push(c); }
+    c.members.push(p);
+    c.maxHail=Math.max(c.maxHail,p.mag);
+    if(new Date(p.valid)>new Date(c.newest)) c.newest=p.valid;
+  });
+  // fold wind + gust counts into nearest cluster
+  d.wind.forEach(w=>{ const c=clusters.find(c=>miBetween([c.lat,c.lon],[w.lat,w.lon])<12); if(c){c.windN++; if(new Date(w.valid)>new Date(c.newest)&&daysAgo(w.valid)<daysAgo(c.newest))c.newest=w.valid;} });
+  d.gust.forEach(g=>{ const c=clusters.find(c=>miBetween([c.lat,c.lon],[g.lat,g.lon])<12); if(c)c.gustN++; });
+  clusters.forEach(c=>{
+    const dAgo=daysAgo(c.newest), mi=Math.round(miBetween(HOME,[c.lat,c.lon]));
+    const hp = c.maxHail>=1.75?40 : c.maxHail>=1?32 : c.maxHail>=.75?20 : c.maxHail>0?9 : 0;
+    const rp = dAgo<=4?25 : dAgo<=10?20 : dAgo<=21?14 : 8;
+    const wp = Math.min(16, c.windN*3 + c.gustN*4);
+    const pp = mi<15?10 : mi<40?8 : mi<70?5 : 2;
+    c.score = hp+rp+wp+pp; c.mi=mi; c.dAgo=Math.round(dAgo);
+    c.label = c.members[0].city ? (c.members[0].city+', '+c.members[0].county+' Co '+c.members[0].st) : (c.county+' Co');
+  });
+  return clusters.filter(c=>c.score>=18).sort((a,b)=>b.score-a.score).slice(0,12);
+}
+
+function drawZones(clusters){
+  layers.zones.clearLayers();
+  const box=document.getElementById('zones'); box.innerHTML='';
+  document.getElementById('zcount').textContent = clusters.length ? clusters.length+' zones' : '';
+  if(!clusters.length){ box.innerHTML='<div class="empty">No qualifying impact clusters in this window. Widen the range.</div>'; return; }
+  clusters.forEach((c,i)=>{
+    const rank=i+1;
+    L.circle([c.lat,c.lon],{radius:11000,color:'#c2410c',weight:2,dashArray:'2 4',fillColor:'#c2410c',fillOpacity:.06}).addTo(layers.zones)
+      .bindTooltip(`<b>#${rank} — ${c.score} pts</b><br>${c.label}<br>Max hail ${c.maxHail||'—'}″ · ${c.dAgo}d ago · ${c.mi} mi`,{direction:'top'});
+    L.tooltip({permanent:true,direction:'center',className:'zlabel'}).setContent('#'+rank).setLatLng([c.lat,c.lon]).addTo(layers.zones);
+    const fresh = c.dAgo<=4 ? '<span class="badge fresh">FRESH</span>' : '';
+    const hail = c.maxHail>=1 ? '<span class="badge hail">'+c.maxHail+'″ HAIL</span>' : '';
+    const el=document.createElement('div'); el.className='card';
+    el.innerHTML=`<div class="top"><span class="name">#${rank} ${c.label}${fresh}${hail}</span><span class="score">${c.score}</span></div>
+      <div class="meta">Max hail ${c.maxHail||'—'}″ · newest event ${c.dAgo}d ago · ${c.mi} mi drive · ${c.windN} wind + ${c.gustN} gust reports nearby</div>`;
+    el.onclick=()=>{ map.flyTo([c.lat,c.lon],11); };
+    box.appendChild(el);
+  });
+}
+
+// ======================= 2. LIVE NWS ALERTS =======================
+async function loadAlerts(){
+  setPill('p-alert','warn','NWS alerts…');
+  const url='https://api.weather.gov/alerts/active?area=PA,NJ,MD,DE,NY,VA';
+  const gj=await getJSON(url,{'Accept':'application/geo+json'});
+  const keep=['Thunderstorm','Tornado','Hail','Flood'];
+  const feats=(gj.features||[]).filter(f=>{
+    const e=f.properties?.event||''; return keep.some(k=>e.includes(k));
+  });
+  return feats;
+}
+function drawAlerts(feats){
+  layers.alerts.clearLayers();
+  const box=document.getElementById('alerts'); box.innerHTML='';
+  document.getElementById('acount').textContent = feats.length ? feats.length : '';
+  if(!feats.length){ box.innerHTML='<div class="empty">No active severe-storm alerts in the region right now.</div>'; return; }
+  feats.slice(0,25).forEach(f=>{
+    const p=f.properties;
+    if(f.geometry){ try{ L.geoJSON(f.geometry,{style:{color:'#b3261e',weight:1,fillColor:'#b3261e',fillOpacity:.12}}).addTo(layers.alerts)
+      .bindTooltip(`<b>${p.event}</b><br>${(p.areaDesc||'').slice(0,90)}`,{sticky:true}); }catch(e){} }
+    const el=document.createElement('div'); el.className='card alertcard';
+    el.innerHTML=`<div class="top"><span class="name">${p.event}<span class="badge alert">${p.severity||''}</span></span></div>
+      <div class="meta">${(p.areaDesc||'').slice(0,150)}<br>Until ${p.expires?new Date(p.expires).toLocaleString():'—'}</div>`;
+    box.appendChild(el);
+  });
+}
+
+// ======================= 3. SPC FORECAST OUTLOOK (best-effort, multi-endpoint) =======================
+const SPC_STYLE={TSTM:'#cfe8cf',MRGL:'#a9dfbf',SLGT:'#f6e58d',ENH:'#e59866',MDT:'#e74c3c',HIGH:'#c0392b'};
+async function loadSPC(){
+  setPill('p-spc','warn','Forecast risk…');
+  const candidates=[
+    'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.geojson',
+    'https://www.spc.noaa.gov/products/outlook/day2otlk_cat.geojson',
+    'https://mesonet.agron.iastate.edu/geojson/spc_outlook.geojson?day=1&cat=categorical'
+  ];
+  for(const url of candidates){
+    try{
+      const gj=await getJSON(url);
+      if(gj && gj.features && gj.features.length) return {gj,url};
+    }catch(e){ /* try next */ }
+  }
+  throw new Error('no SPC endpoint reachable');
+}
+function drawSPC(gj){
+  layers.spc.clearLayers();
+  const box=document.getElementById('spc'); box.innerHTML='';
+  const hits=[];
+  L.geoJSON(gj,{
+    filter:f=>{ const lbl=(f.properties?.LABEL||f.properties?.dn||'').toString().toUpperCase();
+                return lbl && lbl!=='TSTM'; },  // draw real risk areas prominently
+    style:f=>{ const lbl=(f.properties?.LABEL||'').toUpperCase();
+               return {color:'#7a2408',weight:1,fillColor:SPC_STYLE[lbl]||'#e59866',fillOpacity:.28}; },
+    onEachFeature:(f,lyr)=>{ const p=f.properties||{}; const lbl=(p.LABEL||'').toUpperCase();
+      lyr.bindTooltip(`<b>SPC ${p.LABEL2||lbl} risk</b><br>${p.VALID? 'valid '+p.VALID : ''}`,{sticky:true});
+      hits.push(lbl); }
+  }).addTo(layers.spc);
+  // also faint TSTM (general storms) layer
+  L.geoJSON(gj,{filter:f=>(f.properties?.LABEL||'').toUpperCase()==='TSTM',
+    style:{color:'#9bbf9b',weight:.5,fillColor:'#cfe8cf',fillOpacity:.12}}).addTo(layers.spc);
+  const order=['HIGH','MDT','ENH','SLGT','MRGL'];
+  const top=order.find(o=>hits.includes(o));
+  if(top){ const names={HIGH:'HIGH',MDT:'Moderate',ENH:'Enhanced',SLGT:'Slight',MRGL:'Marginal'};
+    box.innerHTML=`<div class="card"><div class="name">${names[top]} storm risk on the board</div>
+      <div class="meta">SPC has a ${names[top]} severe-weather risk area drawn — shaded on the map. Watch it: if it overlaps your radius, that's where the next fresh leads land. Re-check the day before.</div></div>`;
+  } else {
+    box.innerHTML='<div class="empty">Only general-thunderstorm risk drawn today — no organized severe area near the region.</div>';
+  }
+}
+
+// ======================= ORCHESTRATION =======================
+async function refreshAll(){
+  const days=parseInt(document.getElementById('range').value,10);
+  document.getElementById('updated').textContent='updating…';
+  // storm reports + impact scoring
+  try{ const d=await loadLSR(days); drawReports(d); drawZones(scoreImpactPoints(d));
+       setPill('p-lsr','ok',`${d.hail.length} hail · ${d.wind.length} wind`); }
+  catch(e){ setPill('p-lsr','err','Storm reports blocked'); document.getElementById('zones').innerHTML='<div class="empty">Could not load storm reports (network/CORS). Try Refresh.</div>'; }
+  // alerts
+  try{ const a=await loadAlerts(); drawAlerts(a); setPill('p-alert','ok',`${a.length} active`); }
+  catch(e){ setPill('p-alert','err','Alerts blocked'); document.getElementById('alerts').innerHTML='<div class="empty">Could not load NWS alerts.</div>'; }
+  // SPC outlook
+  try{ const s=await loadSPC(); drawSPC(s.gj); setPill('p-spc','ok','Outlook live'); }
+  catch(e){ setPill('p-spc','err','Outlook unavailable'); document.getElementById('spc').innerHTML='<div class="empty">SPC outlook not reachable from this browser (some networks block spc.noaa.gov). Alerts above still cover imminent storms.</div>'; }
+  document.getElementById('updated').textContent='Updated '+new Date().toLocaleTimeString();
+}
+
+document.getElementById('refresh').onclick=refreshAll;
+document.getElementById('range').onchange=refreshAll;
+refreshAll();
+setInterval(refreshAll, REFRESH_MS);
+</script>
+</body>
+</html>
