@@ -23,6 +23,16 @@ This repo auto-publishes to GitHub Pages on every push to `main` (see
 
 The page pulls fresh data on every visit, so you never re-upload anything.
 
+## Deploy it anywhere else in one click
+The repo is a zero-build static site, pre-configured for the big hosts:
+
+- **Vercel** — [deploy now](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsethk727-crypto%2FRoofing-Master-Data)
+  (or vercel.com → **Add New → Project** → import `Roofing-Master-Data` → **Deploy**; `vercel.json`
+  is already in the repo, no build settings needed — leave everything default). Every push to
+  `main` auto-redeploys.
+- **Netlify** — [deploy now](https://app.netlify.com/start/deploy?repository=https%3A%2F%2Fgithub.com%2Fsethk727-crypto%2FRoofing-Master-Data)
+  (`netlify.toml` included, publish directory is the repo root).
+
 ## Put it on your iPhone like an app
 1. Open the live URL above in **Safari**.
 2. Tap the **Share** button → **Add to Home Screen** → **Add**.
