@@ -16,19 +16,29 @@ it loads and auto-refreshes every 15 minutes.
 Double-click `index.html`. It opens in your browser and starts pulling live data.
 
 ## It's already online
-This repo auto-deploys to GitHub Pages on every push to `main` (see
-`.github/workflows/deploy-pages.yml`). The live app:
+This repo auto-publishes to GitHub Pages on every push to `main` (see
+`.github/workflows/deploy-pages.yml`, which mirrors `main` to the `gh-pages` branch). The live app:
 
 **https://sethk727-crypto.github.io/Roofing-Master-Data/**
 
-Bookmark it on your phone — it's your storm radar in your pocket. The page pulls fresh data on
-every visit, so you never re-upload anything.
+The page pulls fresh data on every visit, so you never re-upload anything.
+
+## Put it on your iPhone like an app
+1. Open the live URL above in **Safari**.
+2. Tap the **Share** button → **Add to Home Screen** → **Add**.
+3. It installs as a full-screen app with the StormStrike bolt icon — your storm radar in your
+   pocket. Works the same on Android (Chrome → ⋮ → Add to Home screen).
+
+On a phone the map is full-screen with a swipeable bottom sheet: drag the grab bar up/down
+(or tap it) to switch between map view, half view, and full list. Tabs switch between
+**⚡ Targets**, **🚨 Alerts**, and **🌩 Forecast**. Tapping a target card flies the map to it.
 
 ## Get the AI weekly plan
-Open the live app, pick your date range, and click **⇩ Analyst JSON** in the header. It
-downloads (and copies to your clipboard) `stormstrike-input.json` — the exact input the
-`PROMPT.md` analyst expects. Paste it into a Claude session along with `PROMPT.md` and you get
-back the ranked, routed Mon-Fri canvassing plan.
+Open the live app, pick your date range, and tap **⇪** in the header. On iPhone/Android it
+opens the share sheet with `stormstrike-input.json` (share it straight into the Claude app);
+on desktop it downloads the file and copies it to your clipboard. That file is the exact input
+the `PROMPT.md` analyst expects — paste it into a Claude session along with `PROMPT.md` and you
+get back the ranked, routed Mon-Fri canvassing plan.
 
 Because all the data is fetched live in the browser, the GitHub page is always current — you
 never have to re-upload anything. To change the home base or radius, edit the `CONFIG` block at

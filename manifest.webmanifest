@@ -1,0 +1,15 @@
+{
+  "name": "StormStrike — Roof Lead Radar",
+  "short_name": "StormStrike",
+  "description": "Live NWS hail and wind-damage reports within 120 miles of Media, PA, ranked into canvassing targets.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#161a20",
+  "theme_color": "#161a20",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
