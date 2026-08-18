@@ -836,16 +836,56 @@ async function importLeadsCSV(file){
   });
   LEADS.push(...fresh);
   leadsSave(); renderLeads(); applyWindow();  // parcel years can change zone housing scores
-  const need=fresh.filter(l=>l.lat==null && l.address);
-  toast(`Imported ${fresh.length} lead${fresh.length===1?'':'s'}${need.length?` — locating ${need.length} address${need.length===1?'':'es'}…`:''}`);
-  for(const l of need){  // OSM Nominatim geocoding, throttled to their 1 req/sec fair-use limit
+  toast(`Imported ${fresh.length} lead${fresh.length===1?'':'s'}`);
+  await geocodeMissing(fresh);
+}
+
+// ======================= GEOCODING =======================
+// Big lists go to the US Census batch geocoder (thousands of addresses in one request,
+// free, no key); anything it can't match falls back to OSM Nominatim at 1 req/sec.
+async function censusBatchGeocode(need){
+  toast(`Batch-locating ${need.length} addresses…`);
+  const lines=need.map((l,i)=>{
+    const p=l.address.split(',').map(s=>s.trim());
+    return [i, p[0]||'', p[1]||'', p[2]||'', p[3]||''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
+  }).join('\n');
+  const fd=new FormData();
+  fd.append('addressFile', new Blob([lines],{type:'text/csv'}), 'addresses.csv');
+  fd.append('benchmark','Public_AR_Current');
+  const r=await fetch('https://geocoding.geo.census.gov/geocoder/locations/addressbatch',{method:'POST',body:fd});
+  if(!r.ok) return 0;
+  let hits=0;
+  (await r.text()).split('\n').forEach(line=>{
+    // "id","input","Match","Exact|Non_Exact","matched addr","lon,lat",tigerId,side
+    const m=line.match(/^"(\d+)",.*"Match",.*"(-?\d+\.?\d*),(-?\d+\.?\d*)"/);
+    if(m){ const l=need[+m[1]]; if(l && l.lat==null){ l.lat=+m[3]; l.lon=+m[2]; hits++; } }
+  });
+  return hits;
+}
+async function geocodeMissing(list){
+  let need=list.filter(l=>l.lat==null && l.address);
+  if(!need.length) return;
+  if(need.length>15){
+    try{
+      const hits=await censusBatchGeocode(need);
+      if(hits){ leadsSave(); renderLeads(); applyWindow(); toast(`Located ${hits} of ${need.length} addresses instantly`); }
+    }catch(e){ /* CORS or network — fall through to Nominatim */ }
+    need=need.filter(l=>l.lat==null);
+  }
+  if(!need.length) return;
+  toast(`Locating ${need.length} address${need.length===1?'':'es'} (~1/sec)…`);
+  let done=0;
+  for(const l of need){  // OSM Nominatim, throttled to their 1 req/sec fair-use limit
     try{
       const res=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(l.address),null,1);
-      if(res && res[0]){ l.lat=parseFloat(res[0].lat); l.lon=parseFloat(res[0].lon); leadsSave(); renderLeads(); }
+      if(res && res[0]){ l.lat=parseFloat(res[0].lat); l.lon=parseFloat(res[0].lon); }
     }catch(e){}
+    done++;
+    if(done%10===0){ leadsSave(); renderLeads(); toast(`Located ${done}/${need.length}…`); }
     await new Promise(r=>setTimeout(r,1100));
   }
-  if(need.length){ toast('Address lookup finished'); applyWindow(); }
+  leadsSave(); renderLeads(); applyWindow();
+  toast('Address lookup finished');
 }
 
 // --- Airtable sync: the browser talks straight to api.airtable.com with YOUR token,
@@ -912,16 +952,7 @@ async function syncAirtable(cfg){
   }catch(e){ toast('Could not reach Airtable — check your connection'); return; }
   leadsSave(); renderLeads(); applyWindow();
   toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
-  const need=LEADS.filter(l=>l.lat==null && l.address && l.id.startsWith('at:'));
-  if(need.length) toast(`Locating ${need.length} addresses…`);
-  for(const l of need){  // OSM Nominatim, throttled to 1 req/sec fair use
-    try{
-      const res=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(l.address),null,1);
-      if(res && res[0]){ l.lat=parseFloat(res[0].lat); l.lon=parseFloat(res[0].lon); leadsSave(); renderLeads(); }
-    }catch(e){}
-    await new Promise(r=>setTimeout(r,1100));
-  }
-  if(need.length){ toast('Address lookup finished'); applyWindow(); }
+  await geocodeMissing(LEADS.filter(l=>l.id.startsWith('at:')));
 }
 
 function cycleStatus(i){
@@ -939,6 +970,7 @@ function renderLeads(){
     box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses (name, address, city, state, zip — or lat/lon), or <b>⚡ Airtable</b> to pull a table straight from your base (token stays on this device). Statuses you set are saved on this device.</div>';
     return;
   }
+  const LIST_CAP=250;   // pins go on the map for every lead; the card list stays snappy
   LEADS.forEach((l,idx)=>{
     const color=STATUS_COLOR[l.status]||'#2563eb';
     if(HAS_MAP && l.lat!=null){
@@ -948,6 +980,7 @@ function renderLeads(){
           `<button onclick="cycleStatus(${idx})" style="margin:6px 6px 0 0;min-height:32px;border:none;border-radius:7px;background:${color};color:#fff;font-weight:700;padding:0 10px">Next status ›</button>`+
           `<a href="${navUrl(l.lat,l.lon)}" target="_blank" rel="noopener">🧭 Navigate</a>`);
     }
+    if(idx>=LIST_CAP) return;
     const mi = l.lat!=null ? Math.round(miBetween(HOME,[l.lat,l.lon]))+' mi from base' : 'locating address…';
     const el=document.createElement('div'); el.className='card';
     el.innerHTML=`<div class="top"><span class="name">${esc(l.name||l.address||'Lead')}</span>
@@ -957,6 +990,8 @@ function renderLeads(){
     el.onclick=()=>{ if(l.lat!=null) focusOnMap([l.lat,l.lon],14); };
     box.appendChild(el);
   });
+  if(LEADS.length>LIST_CAP)
+    box.insertAdjacentHTML('beforeend',`<div class="empty">…plus ${LEADS.length-LIST_CAP} more — every lead is pinned on the map (tap pins to work them). Use ⬇ CSV for the full list.</div>`);
 }
 
 // ======================= ANALYST EXPORT (input contract for PROMPT.md) =======================
