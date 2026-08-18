@@ -31,6 +31,8 @@
   --grab:#cdd3dd; --legendbg:rgba(255,255,255,.95); --zlabel:#7a1f00; --zshadow:#fff; --mapbg:#dfe4ea;
 }
 *{box-sizing:border-box;margin:0}
+button,select,.tab,.card,.leaflet-container{touch-action:manipulation}
+header,#tabs,#grab,.leadbar,.statuschip,.legend{user-select:none;-webkit-user-select:none}
 html,body{height:100%}
 body{font-family:-apple-system,'SF Pro Text','Segoe UI',system-ui,Arial,sans-serif;color:var(--ink);
   background:var(--bg);display:flex;flex-direction:column;height:100dvh;
@@ -97,7 +99,7 @@ button:active{filter:brightness(1.25)}
 .badge.fresh{background:var(--fresh)} .badge.hail{background:var(--hot)} .badge.alert{background:#b3261e}
 .alertcard{border-left:4px solid #b3261e;background:var(--alertbg);cursor:default}
 .card.dayon{border-color:var(--hot);background:var(--daybg);box-shadow:inset 3px 0 0 var(--hot)}
-.leadbar{display:flex;gap:8px;margin-bottom:10px}
+.leadbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .leadbar button{background:var(--btn);color:#fff;border:none;border-radius:9px;min-height:40px;padding:0 14px;font-weight:700}
 .leadbar button.ghost{background:var(--chipbg);color:var(--ink)}
 .statuschip{border:none;color:#fff;font-size:11px;font-weight:800;border-radius:14px;min-height:30px;padding:0 11px;flex-shrink:0}
@@ -211,6 +213,7 @@ header{position:relative}
         <div class="leadbar">
           <button id="importcsv">⇧ Import CSV</button>
           <button id="airtable">⚡ Airtable</button>
+          <button id="exportleads" class="ghost">⬇ CSV</button>
           <button id="clearleads" class="ghost">Clear</button>
         </div>
         <input type="file" id="csvfile" accept=".csv,text/csv" hidden>
@@ -230,6 +233,9 @@ header{position:relative}
 <div id="toast" role="status" aria-live="polite"></div>
 
 <div class="legend">
+  <span class="dot" style="background:#e11d48"></span><b>RED zone</b> — dispatch (80+)<br>
+  <span class="dot" style="background:#f97316"></span><b>ORANGE</b> — secondary (60-79)<br>
+  <span class="dot" style="background:#eab308"></span><b>YELLOW</b> — investigate (&lt;60)<br>
   <span class="dot" style="background:#c2410c"></span>Hail ≥0.75″ (sized by stone)<br>
   <span class="dot" style="background:#f0a06c"></span>Hail &lt;0.75″<br>
   <span class="dot" style="background:#1a7f37"></span>Wind damage — last 4 days<br>
@@ -470,16 +476,23 @@ function scoreImpactPoints(d){
   // fold wind + gust counts into nearest cluster
   d.wind.forEach(w=>{ const c=clusters.find(c=>miBetween([c.lat,c.lon],[w.lat,w.lon])<12); if(c){c.windN++; if(new Date(w.valid)>new Date(c.newest)&&daysAgo(w.valid)<daysAgo(c.newest))c.newest=w.valid;} });
   d.gust.forEach(g=>{ const c=clusters.find(c=>miBetween([c.lat,c.lon],[g.lat,g.lon])<12); if(c)c.gustN++; });
+  // Housing layer: leads/parcels imported with a "built YYYY" note give each swath a real
+  // median year-built (PROMPT.md housing rubric); swaths with no parcel data score "unknown" (2).
+  const parcels = (typeof LEADS!=='undefined'?LEADS:[]).filter(l=>l.lat!=null && /built\s+\d{4}/.test(l.notes||''))
+    .map(l=>({lat:l.lat, lon:l.lon, yr:+l.notes.match(/built\s+(\d{4})/)[1]}));
   clusters.forEach(c=>{
     const dAgo=daysAgo(c.newest), mi=Math.round(miBetween(HOME,[c.lat,c.lon]));
-    // Rubric matches PROMPT.md exactly (housing = 2, "unknown", since parcel data isn't loaded here)
+    // Rubric matches PROMPT.md exactly
     let hp = c.maxHail>=1.75?45 : c.maxHail>=1.25?38 : c.maxHail>=1?32 : c.maxHail>=.75?20 : c.maxHail>0?9 : 0;
     const hailDays = new Set(c.members.filter(m=>m.kind==='hail'&&m.mag>0).map(m=>dayKey(m.valid)));
     if(hp && hailDays.size>=2) hp=Math.min(45,hp+5);
     const rp = dAgo<=4?25 : dAgo<=10?20 : dAgo<=21?14 : dAgo<=31?8 : 4;
     const wp = Math.min(16, c.windN*3 + c.gustN*4);
     const pp = mi<15?10 : mi<40?8 : mi<70?5 : 2;
-    c.score = hp+rp+wp+pp+2;
+    const yrs = parcels.filter(p=>miBetween([c.lat,c.lon],[p.lat,p.lon])<9).map(p=>p.yr).sort((a,b)=>a-b);
+    c.medYear = yrs.length ? yrs[Math.floor(yrs.length/2)] : null;
+    const hb = c.medYear ? (c.medYear<1960?10 : c.medYear<1980?7 : c.medYear<2000?4 : 2) : 2;
+    c.score = hp+rp+wp+pp+hb;
     if(c.maxHail===0 && c.gustN===0) c.score=Math.min(60,c.score);  // wind-only guardrail
     c.mi=mi; c.dAgo=Math.round(dAgo);
     c.label = c.members[0].city ? (c.members[0].city+', '+c.members[0].county+' Co '+c.members[0].st) : (c.county+' Co');
@@ -514,23 +527,74 @@ function drawZones(clusters){
   }
   clusters.forEach((c,i)=>{
     const rank=i+1;
+    // Knock-zone color: RED = dispatch now, ORANGE = secondary, YELLOW = investigate
+    const zc = c.score>=80 ? {c:'#e11d48',f:.16,w:2.5} : c.score>=60 ? {c:'#f97316',f:.10,w:2} : {c:'#eab308',f:.06,w:1.5};
     if(HAS_MAP){
-      L.circle([c.lat,c.lon],{radius:11000,color:'#c2410c',weight:2,dashArray:'2 4',fillColor:'#c2410c',fillOpacity:.06}).addTo(layers.zones)
-        .bindTooltip(`<b>#${rank} — ${c.score} pts</b><br>${c.label}<br>Max hail ${c.maxHail||'—'}″ · ${c.dAgo}d ago · ${c.mi} mi`,{direction:'top'});
+      L.circle([c.lat,c.lon],{radius:11000,color:zc.c,weight:zc.w,dashArray:'2 4',fillColor:zc.c,fillOpacity:zc.f}).addTo(layers.zones)
+        .bindTooltip(`<b>#${rank} — ${c.score} pts</b><br>${c.label}<br>Max hail ${c.maxHail||'—'}″ · ${c.dAgo}d ago · ${c.mi} mi<br><i>Tap for stats + door script</i>`,{direction:'top'})
+        .on('click',()=>showZoneDetail(c,rank));
       L.tooltip({permanent:true,direction:'center',className:'zlabel'}).setContent('#'+rank).setLatLng([c.lat,c.lon]).addTo(layers.zones);
     }
     const fresh = c.dAgo<=4 ? '<span class="badge fresh">FRESH</span>' : '';
     const hail = c.maxHail>=1 ? '<span class="badge hail">'+c.maxHail+'″ HAIL</span>' : '';
     const el=document.createElement('div'); el.className='card';
-    el.innerHTML=`<div class="top"><span class="name">#${rank} ${c.label}${fresh}${hail}</span><span class="score">${c.score}</span></div>
-      <div class="meta">Max hail ${c.maxHail||'—'}″ · newest event ${c.dAgo}d ago · ${c.mi} mi drive · ${c.windN} wind + ${c.gustN} gust reports nearby</div>
+    el.innerHTML=`<div class="top"><span class="name">#${rank} ${c.label}${fresh}${hail}</span><span class="score" style="color:${zc.c}">${c.score}</span></div>
+      <div class="meta">Max hail ${c.maxHail||'—'}″ · newest event ${c.dAgo}d ago · ${c.mi} mi drive · ${c.windN} wind + ${c.gustN} gust reports nearby${c.medYear?' · median build ~'+c.medYear:''}</div>
       <div class="meta zstart" id="zstart-${rank}"></div>
-      <div class="zactions"><a class="navbtn" href="${navUrl(c.lat,c.lon)}" target="_blank" rel="noopener">🧭 Navigate to zone</a></div>`;
+      <div class="zactions"><a class="navbtn zinfo" href="#">ℹ Details + script</a>
+        <a class="navbtn" href="${navUrl(c.lat,c.lon)}" target="_blank" rel="noopener">🧭 Navigate</a></div>`;
     el.onclick=()=>focusOnMap([c.lat,c.lon],11);
     el.querySelectorAll('a').forEach(a=>a.addEventListener('click',e=>e.stopPropagation()));
+    el.querySelector('.zinfo').addEventListener('click',e=>{e.preventDefault();showZoneDetail(c,rank);});
     box.appendChild(el);
   });
   fillStartAddresses(clusters);
+}
+
+// ======================= TAP-TO-ACTION ZONE SHEET =======================
+function qualPath(c){
+  if(c.maxHail>=1 && c.medYear && c.medYear<1980) return 'INSURANCE_CLAIM';
+  if(c.maxHail>=1) return 'HYBRID';
+  return (c.windN||c.gustN) ? 'RETAIL / REPAIR' : 'INVESTIGATE';
+}
+// Honest, hyper-local opener: real storm date, real size, real town. No fake "mandatory
+// inspection" framing — that's deceptive and illegal to imply in PA/NJ.
+function doorScript(c){
+  const day=new Date(c.newest).toLocaleDateString([],{weekday:'long',month:'long',day:'numeric'});
+  const town=(c.label||'').split(',')[0];
+  const era=c.medYear?`a lot of the ${Math.floor(c.medYear/10)*10}s-built homes here`:'a lot of the older homes here';
+  if(c.maxHail>=0.75)
+    return `Hi, I'm with [Your Company] out of Media — that ${day} storm dropped ${c.maxHail}″ hail on ${town}, and we're doing free documented roof inspections on this block. ${era.charAt(0).toUpperCase()+era.slice(1)} still have 3-tab shingles — want me to take a quick look while I'm on your street?`;
+  return `Hi, I'm with [Your Company] out of Media — the ${day} winds caused reported damage around ${town}, so we're doing free documented roof checks on this street. Ten minutes, you keep the photos either way — want me to add your place while I'm here?`;
+}
+function showZoneDetail(c,rank){
+  const zonesTab=document.querySelector('.tab[data-tab="zones"]'); if(zonesTab) zonesTab.click();
+  if(isPhone() && snap===0) setSheet(1);
+  const old=document.getElementById('zdetail'); if(old) old.remove();
+  const gps = geoMarker ? Math.round(miBetween([geoMarker.getLatLng().lat,geoMarker.getLatLng().lng],[c.lat,c.lon])) : null;
+  const d=new Date(c.newest);
+  const script=doorScript(c);
+  const el=document.createElement('div'); el.className='card dayon'; el.id='zdetail'; el.style.cursor='default';
+  el.innerHTML=`<div class="top"><span class="name">#${rank} ${esc(c.label)}</span><button class="statuschip" style="background:#475569" id="zdclose">✕</button></div>
+    <div class="meta"><b>${c.maxHail?('Max hail '+c.maxHail+'″'):'Wind damage event'}</b> · ${d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})} (${c.dAgo}d ago) · score ${c.score}<br>
+      ${gps!=null?('<b>'+gps+' mi from you</b> · '):''}${c.mi} mi from base${c.medYear?(' · median build ~'+c.medYear):''}<br>
+      Qualification path: <b>${qualPath(c)}</b></div>
+    <div class="meta" style="color:var(--ink)">“${esc(script)}”</div>
+    <div class="zactions">
+      <a class="navbtn" href="#" id="zdcopy">📋 Copy script</a>
+      <a class="navbtn" href="${navUrl(c.lat,c.lon)}" target="_blank" rel="noopener">🧭 Navigate</a>
+      <a class="navbtn" href="#" id="zdcsv">📊 Zone CSV</a>
+    </div>`;
+  document.getElementById('zones').prepend(el);
+  const panes=document.querySelector('.tabpanes'); if(panes) panes.scrollTop=0;
+  document.getElementById('zdclose').onclick=()=>el.remove();
+  document.getElementById('zdcopy').onclick=async e=>{ e.preventDefault();
+    try{ await navigator.clipboard.writeText(script); toast('Door script copied'); }catch(err){ toast('Could not copy on this browser'); } };
+  document.getElementById('zdcsv').onclick=async e=>{ e.preventDefault();
+    const head=['Rank','Zone','Latitude','Longitude','Address','Score','Max Hail (in)','Newest Event (days ago)','Drive (mi)'];
+    const row=[rank,c.label,c.lat.toFixed(5),c.lon.toFixed(5),startAddrFor(c),c.score,c.maxHail||'',c.dAgo,c.mi];
+    await shareOrDownload('zone-'+rank+'.csv','text/csv',
+      [head.map(csvCell).join(','),row.map(csvCell).join(',')].join('\r\n'),'Zone CSV'); };
 }
 
 // Reverse-geocode a street-level "start here" address for the top zones (OSM Nominatim,
@@ -723,7 +787,7 @@ async function importLeadsCSV(file){
     fresh.push({id, name:get(iName), address, notes:get(iNotes), status:'new', lat, lon});
   });
   LEADS.push(...fresh);
-  leadsSave(); renderLeads();
+  leadsSave(); renderLeads(); applyWindow();  // parcel years can change zone housing scores
   const need=fresh.filter(l=>l.lat==null && l.address);
   toast(`Imported ${fresh.length} lead${fresh.length===1?'':'s'}${need.length?` — locating ${need.length} address${need.length===1?'':'es'}…`:''}`);
   for(const l of need){  // OSM Nominatim geocoding, throttled to their 1 req/sec fair-use limit
@@ -733,7 +797,7 @@ async function importLeadsCSV(file){
     }catch(e){}
     await new Promise(r=>setTimeout(r,1100));
   }
-  if(need.length) toast('Address lookup finished');
+  if(need.length){ toast('Address lookup finished'); applyWindow(); }
 }
 
 // --- Airtable sync: the browser talks straight to api.airtable.com with YOUR token,
@@ -798,7 +862,7 @@ async function syncAirtable(cfg){
       offset=j.offset||'';
     }while(offset);
   }catch(e){ toast('Could not reach Airtable — check your connection'); return; }
-  leadsSave(); renderLeads();
+  leadsSave(); renderLeads(); applyWindow();
   toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
   const need=LEADS.filter(l=>l.lat==null && l.address && l.id.startsWith('at:'));
   if(need.length) toast(`Locating ${need.length} addresses…`);
@@ -809,7 +873,7 @@ async function syncAirtable(cfg){
     }catch(e){}
     await new Promise(r=>setTimeout(r,1100));
   }
-  if(need.length) toast('Address lookup finished');
+  if(need.length){ toast('Address lookup finished'); applyWindow(); }
 }
 
 function cycleStatus(i){
@@ -1000,6 +1064,14 @@ document.getElementById('csvfile').onchange=e=>{
   e.target.value='';
 };
 document.getElementById('airtable').onclick=()=>airtableButton();
+document.getElementById('exportleads').onclick=async()=>{
+  if(!LEADS.length){ toast('No leads to export yet'); return; }
+  const head=['name','address','status','notes','lat','lon'];
+  const rows=LEADS.map(l=>[l.name,l.address,STATUS_LABEL[l.status]||l.status,l.notes,
+    l.lat!=null?l.lat:'',l.lon!=null?l.lon:''].map(csvCell).join(','));
+  await shareOrDownload('stormstrike-leads.csv','text/csv',
+    [head.join(','),...rows].join('\r\n'),'Leads CSV');
+};
 document.getElementById('clearleads').onclick=()=>{
   if(!LEADS.length){ toast('No leads to clear'); return; }
   if(confirm('Delete all '+LEADS.length+' leads and their statuses from this device?')){

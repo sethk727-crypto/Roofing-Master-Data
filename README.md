@@ -115,6 +115,20 @@ the top of the `<script>` in `index.html` and re-commit.
   networks block spc.noaa.gov; if so, the app still shows reports + active alerts, and the
   status pill turns amber.*
 
+## Knock Zones: red / orange / yellow
+Target zones on the map are color-coded by score: **🔴 red (80+) = dispatch now**,
+**🟠 orange (60-79) = secondary**, **🟡 yellow (<60) = investigate**. Tap any zone circle (or a
+card's **ℹ Details + script**) and an action card slides in with the zone's stats (max hail,
+storm date, distance from your live GPS position if it's on), the qualification path
+(INSURANCE_CLAIM / HYBRID / RETAIL), a two-sentence door opener built from the real storm data
+(date, hail size, town, housing era — no fake "mandatory inspection" lines), plus one-tap
+**Copy script**, **Navigate**, and **Zone CSV** buttons.
+
+When your imported leads carry a "built YYYY" note (the Airtable sync and the CSVs Claude
+generates include it), each zone's housing score uses the real median year-built of parcels
+inside it instead of "unknown" — old 3-tab-era neighborhoods push zones toward red. The
+**⬇ CSV** button in Leads exports your whole lead list *with door-knock statuses* back out.
+
 ## How the "best impact points" score works
 Recent reports are clustered into swaths (~9 mi) and scored 0-100 on: hail size (with a bonus
 for hail on multiple days), how fresh the newest event is (heavily weighted — fresh beats
