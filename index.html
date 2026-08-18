@@ -210,7 +210,8 @@ header{position:relative}
       <section class="pane" id="pane-leads">
         <div class="leadbar">
           <button id="importcsv">⇧ Import CSV</button>
-          <button id="clearleads" class="ghost">Clear all</button>
+          <button id="airtable">⚡ Airtable</button>
+          <button id="clearleads" class="ghost">Clear</button>
         </div>
         <input type="file" id="csvfile" accept=".csv,text/csv" hidden>
         <div id="leadlist"><div class="empty">No leads yet.</div></div>
@@ -269,7 +270,46 @@ if(HAS_MAP){
       b.innerHTML='<a href="#" title="Back to home base" aria-label="Back to home base">⌂</a>';
       b.onclick=e=>{e.preventDefault();map.setView(HOME,8);}; return b; }});
   map.addControl(new HomeCtl());
-}else{
+  const LocCtl = L.Control.extend({options:{position:'topleft'},
+    onAdd(){ const b=L.DomUtil.create('div','leaflet-bar homebtn');
+      b.innerHTML='<a href="#" id="locbtn" title="My live location" aria-label="My live location">🎯</a>';
+      b.onclick=e=>{e.preventDefault();toggleLocate();}; return b; }});
+  map.addControl(new LocCtl());
+}
+
+// ======================= LIVE LOCATION (for canvassing from the phone) =======================
+let geoWatch=null, geoMarker=null, geoCircle=null, geoCenterOnce=false;
+function toggleLocate(){
+  if(!HAS_MAP) return;
+  const btn=document.getElementById('locbtn');
+  if(geoWatch!=null){
+    navigator.geolocation.clearWatch(geoWatch); geoWatch=null;
+    if(geoMarker){ map.removeLayer(geoMarker); geoMarker=null; }
+    if(geoCircle){ map.removeLayer(geoCircle); geoCircle=null; }
+    if(btn) btn.style.background='';
+    toast('Live location off'); return;
+  }
+  if(!navigator.geolocation){ toast('This browser has no location service'); return; }
+  toast('Locating you…'); geoCenterOnce=true;
+  geoWatch=navigator.geolocation.watchPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!geoMarker){
+      geoMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1})
+        .addTo(map).bindTooltip('You are here');
+      geoCircle=L.circle(ll,{radius:p.coords.accuracy||30,color:'#2563eb',weight:1,fillColor:'#2563eb',fillOpacity:.12}).addTo(map);
+      if(btn) btn.style.background='#2563eb';
+    }else{
+      geoMarker.setLatLng(ll);
+      geoCircle.setLatLng(ll).setRadius(p.coords.accuracy||30);
+    }
+    if(geoCenterOnce){ geoCenterOnce=false; map.setView(ll,Math.max(map.getZoom(),13)); }
+  },err=>{
+    toast(err.code===1?'Location permission denied — allow it for this site in Settings':'Could not get a location fix');
+    if(geoWatch!=null){ navigator.geolocation.clearWatch(geoWatch); geoWatch=null; }
+    if(btn) btn.style.background='';
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+}
+if(!HAS_MAP){
   document.getElementById('map').innerHTML =
     '<div id="nomap">Map library could not load on this connection.<br>Storm reports, targets, and alerts below still work — hit ↻ to retry.</div>';
 }
@@ -696,6 +736,82 @@ async function importLeadsCSV(file){
   if(need.length) toast('Address lookup finished');
 }
 
+// --- Airtable sync: the browser talks straight to api.airtable.com with YOUR token,
+// --- stored only on this device. Nothing is sent anywhere else.
+const AT_KEY='stormstrike-airtable';
+function atConfig(){ try{ return JSON.parse(localStorage.getItem(AT_KEY)); }catch(e){ return null; } }
+async function airtableButton(){
+  const cfg=atConfig();
+  if(cfg && cfg.token){ await syncAirtable(cfg); return; }
+  await linkAirtable();
+}
+async function linkAirtable(){
+  const old=atConfig()||{};
+  const token=prompt('Airtable personal access token (create at airtable.com/create/tokens with data.records:read scope — saved only on this device):', old.token||'');
+  if(!token) return;
+  const base=prompt('Base ID (starts with "app"):', old.base||'appCNUQl9ceWR2e4o');
+  if(!base) return;
+  const table=prompt('Table name:', old.table||'Mail Targets');
+  if(!table) return;
+  const cfg={token:token.trim(), base:base.trim(), table:table.trim()};
+  try{ localStorage.setItem(AT_KEY, JSON.stringify(cfg)); }catch(e){}
+  await syncAirtable(cfg);
+}
+async function syncAirtable(cfg){
+  toast('Syncing Airtable…');
+  let offset='', seen=0, added=0;
+  try{
+    do{
+      const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/${encodeURIComponent(cfg.table)}?pageSize=100${offset?'&offset='+encodeURIComponent(offset):''}`,
+        {headers:{Authorization:'Bearer '+cfg.token}});
+      if(!r.ok){
+        toast('Airtable answered HTTP '+r.status+' — check token/base/table');
+        if(r.status===401||r.status===403||r.status===404) setTimeout(linkAirtable,900);
+        return;
+      }
+      const j=await r.json();
+      (j.records||[]).forEach(rec=>{
+        const f=rec.fields||{};
+        const pick=(...names)=>{ for(const n of names){
+          const k=Object.keys(f).find(x=>x.toLowerCase()===n);
+          if(k && f[k]!=null && f[k]!=='') return f[k]; } return ''; };
+        const sval=v=>typeof v==='object'&&v!==null ? (v.name||'') : String(v||'');
+        const name=sval(pick('lead name','owner name','name','customer','homeowner'));
+        const street=sval(pick('address','property address','street address','street'));
+        const town=sval(pick('town','city')), st2=sval(pick('state','st')), zip=sval(pick('zip','zipcode','zip code'));
+        const cs=sval(pick('county/state'));                        // e.g. "Burlington, NJ"
+        const stGuess=st2 || (cs.includes(',') ? cs.split(',').pop().trim() : '');
+        const address=[street,town,stGuess,zip].filter(Boolean).join(', ');
+        const lat=parseFloat(sval(pick('lat','latitude'))), lon=parseFloat(sval(pick('lon','lng','longitude')));
+        const notes=[sval(pick('campaign')), sval(pick('lead tier')),
+          sval(pick('status'))?('Airtable: '+sval(pick('status'))):'',
+          sval(pick('year built'))?('built '+sval(pick('year built'))):'',
+          sval(pick('notes','raw notes'))].filter(Boolean).join(' · ');
+        seen++;
+        if(!address && !isFinite(lat)) return;
+        const id='at:'+rec.id;
+        if(LEADS.some(x=>x.id===id)) return;   // re-sync keeps your statuses
+        LEADS.push({id, name, address, notes, status:'new',
+          lat:isFinite(lat)?lat:null, lon:isFinite(lon)?lon:null});
+        added++;
+      });
+      offset=j.offset||'';
+    }while(offset);
+  }catch(e){ toast('Could not reach Airtable — check your connection'); return; }
+  leadsSave(); renderLeads();
+  toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
+  const need=LEADS.filter(l=>l.lat==null && l.address && l.id.startsWith('at:'));
+  if(need.length) toast(`Locating ${need.length} addresses…`);
+  for(const l of need){  // OSM Nominatim, throttled to 1 req/sec fair use
+    try{
+      const res=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(l.address),null,1);
+      if(res && res[0]){ l.lat=parseFloat(res[0].lat); l.lon=parseFloat(res[0].lon); leadsSave(); renderLeads(); }
+    }catch(e){}
+    await new Promise(r=>setTimeout(r,1100));
+  }
+  if(need.length) toast('Address lookup finished');
+}
+
 function cycleStatus(i){
   const l=LEADS[i]; if(!l) return;
   l.status=STATUSES[(STATUSES.indexOf(l.status)+1)%STATUSES.length];
@@ -708,7 +824,7 @@ function renderLeads(){
   const box=document.getElementById('leadlist'); box.innerHTML='';
   document.getElementById('lcount').textContent = LEADS.length ? ' '+LEADS.length : '';
   if(!LEADS.length){
-    box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses — columns like name, address, city, state, zip (or lat + lon). A ready template is in the repo: <b>leads-template.csv</b>. Statuses you set are saved on this device.</div>';
+    box.innerHTML='<div class="empty">No leads yet. Tap <b>⇧ Import CSV</b> with a file of addresses (name, address, city, state, zip — or lat/lon), or <b>⚡ Airtable</b> to pull a table straight from your base (token stays on this device). Statuses you set are saved on this device.</div>';
     return;
   }
   LEADS.forEach((l,idx)=>{
@@ -883,6 +999,7 @@ document.getElementById('csvfile').onchange=e=>{
   if(f) importLeadsCSV(f).catch(()=>toast('Could not read that CSV'));
   e.target.value='';
 };
+document.getElementById('airtable').onclick=()=>airtableButton();
 document.getElementById('clearleads').onclick=()=>{
   if(!LEADS.length){ toast('No leads to clear'); return; }
   if(confirm('Delete all '+LEADS.length+' leads and their statuses from this device?')){
