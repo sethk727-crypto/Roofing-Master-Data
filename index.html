@@ -909,8 +909,14 @@ async function linkAirtable(){
   try{ localStorage.setItem(AT_KEY, JSON.stringify(cfg)); }catch(e){}
   await syncAirtable(cfg);
 }
-async function syncAirtable(cfg){
-  toast('Syncing Airtable…');
+let AT_SYNCING=false;
+async function syncAirtable(cfg, quiet){
+  if(AT_SYNCING) return;
+  AT_SYNCING=true;
+  try{ await doSyncAirtable(cfg, quiet); } finally{ AT_SYNCING=false; }
+}
+async function doSyncAirtable(cfg, quiet){
+  if(!quiet) toast('Syncing Airtable…');
   let offset='', seen=0, added=0;
   try{
     do{
@@ -918,7 +924,7 @@ async function syncAirtable(cfg){
         {headers:{Authorization:'Bearer '+cfg.token}});
       if(!r.ok){
         toast('Airtable answered HTTP '+r.status+' — check token/base/table');
-        if(r.status===401||r.status===403||r.status===404) setTimeout(linkAirtable,900);
+        if(!quiet && (r.status===401||r.status===403||r.status===404)) setTimeout(linkAirtable,900);
         return;
       }
       const j=await r.json();
@@ -949,10 +955,12 @@ async function syncAirtable(cfg){
       });
       offset=j.offset||'';
     }while(offset);
-  }catch(e){ toast('Could not reach Airtable — check your connection'); return; }
-  leadsSave(); renderLeads(); applyWindow();
-  toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
-  await geocodeMissing(LEADS.filter(l=>l.id.startsWith('at:')));
+  }catch(e){ if(!quiet) toast('Could not reach Airtable — check your connection'); return; }
+  if(added || !quiet){
+    leadsSave(); renderLeads(); applyWindow();
+    toast(`Airtable: ${seen} records — ${added} new lead${added===1?'':'s'} added`);
+  }
+  if(added) await geocodeMissing(LEADS.filter(l=>l.id.startsWith('at:')));
 }
 
 function cycleStatus(i){
@@ -1171,7 +1179,15 @@ if(cached){
   document.getElementById('updated').textContent='Saved '+new Date(cached.ts).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
 refreshAll();
-setInterval(refreshAll, REFRESH_MS);
+// hands-free lead sync: if Airtable is linked, pull new leads on every open
+// and alongside each 15-minute weather refresh — no manual imports needed
+const atBoot=atConfig();
+if(atBoot && atBoot.token) syncAirtable(atBoot, true);
+setInterval(()=>{
+  refreshAll();
+  const c=atConfig();
+  if(c && c.token) syncAirtable(c, true);
+}, REFRESH_MS);
 </script>
 </body>
 </html>

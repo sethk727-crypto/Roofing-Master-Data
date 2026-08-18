@@ -62,12 +62,17 @@ your lists live). Columns it understands: `name`, `address`, `city`, `state`, `z
 or `lat`/`lon` if you already have coordinates. Rows without coordinates are located
 automatically (OpenStreetMap, ~1/sec). A starter file is in the repo: **`leads-template.csv`**.
 
-Or skip the file entirely: tap **⚡ Airtable** and paste a personal access token
+Or skip files entirely: tap **⚡ Airtable** once and paste a personal access token
 (airtable.com/create/tokens, `data.records:read` scope), your base ID, and a table name — the
 browser pulls the records straight from your base (token is saved only on your device, sent
 only to api.airtable.com). It understands the Roofing Lead Engine columns (Property Address,
-Town, ZIP, County/State, Owner Name, Campaign, Status, Year Built) and re-syncing never
-overwrites statuses you've set. Tap ⚡ again anytime to pull new records.
+Town, ZIP, County/State, Owner Name, Campaign, Status, Year Built) and syncing never
+overwrites statuses you've set.
+
+**After that one-time setup, imports are automatic:** the app re-syncs your Airtable every
+time it opens and again with every 15-minute weather refresh, silently adding any new records
+and dropping their pins — you never upload anything again. (⚡ still works as a manual
+"sync right now" button.)
 
 Each lead becomes a colored pin + card. Tap the status chip (or the pin's popup) to cycle
 **New → Visited → Follow-up → Signed → Dead** — colors update on the map and everything is
